@@ -4,7 +4,7 @@ import { useBookmarkStore } from '@/stores/bookmarkStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useCanvasTree } from '@/composables/useCanvasTree'
 import type { BookmarkNode } from '@/utils/wasmBridge'
-import { EditOutlined, DeleteOutlined, LinkOutlined, TagsOutlined, FolderOutlined } from '@ant-design/icons-vue'
+import { EditOutlined, DeleteOutlined, LinkOutlined, TagsOutlined, FolderOutlined, PlusOutlined, EyeOutlined, ExpandOutlined, CompressOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 
 const bookmarkStore = useBookmarkStore()
@@ -102,7 +102,7 @@ const closeContextMenu = () => {
 }
 
 // Handle context menu actions
-const handleContextMenuAction = (action: 'edit' | 'delete' | 'rename') => {
+const handleContextMenuAction = (action: 'edit' | 'delete' | 'rename' | 'addChild' | 'addSibling' | 'viewDetails' | 'toggleExpand') => {
   const node = contextMenu.value.node
   if (!node) return
 
@@ -130,6 +130,28 @@ const handleContextMenuAction = (action: 'edit' | 'delete' | 'rename') => {
       break
     case 'rename':
       uiStore.openEditBookmark(node)
+      break
+    case 'addChild':
+      // 添加子节点 - 只有目录节点才能添加子节点
+      if (node.url) {
+        message.warning('书签节点不能添加子节点，请选择目录节点')
+        return
+      }
+      uiStore.openAddBookmark(node.id)
+      break
+    case 'addSibling':
+      // 添加同级节点 - 使用父节点ID
+      const parentId = node.parentId || 'root'
+      uiStore.openAddBookmark(parentId)
+      break
+    case 'viewDetails':
+      // 查看详情 - 设置选中节点并打开详情面板
+      selectedNode.value = node
+      showDetailPanel.value = true
+      break
+    case 'toggleExpand':
+      // 展开/收起节点
+      uiStore.toggleNodeExpansion(node.id)
       break
   }
 }
@@ -225,14 +247,47 @@ const formatDate = (timestamp: number) => {
         }"
         class="context-menu"
       >
+        <!-- 查看详情 -->
+        <div class="context-menu-item" @click="handleContextMenuAction('viewDetails')">
+          <eye-outlined /> 查看详情
+        </div>
+        
+        <!-- 添加子节点 (仅目录节点) -->
+        <div 
+          v-if="contextMenu.node && !contextMenu.node.url" 
+          class="context-menu-item" 
+          @click="handleContextMenuAction('addChild')"
+        >
+          <plus-outlined /> 添加子节点
+        </div>
+        
+        <!-- 添加同级节点 -->
+        <div class="context-menu-item" @click="handleContextMenuAction('addSibling')">
+          <plus-outlined /> 添加同级节点
+        </div>
+        
+        <!-- 展开/收起 (仅目录节点) -->
+        <div 
+          v-if="contextMenu.node && !contextMenu.node.url" 
+          class="context-menu-item" 
+          @click="handleContextMenuAction('toggleExpand')"
+        >
+          <expand-outlined v-if="contextMenu.node && !expandedNodes.has(contextMenu.node.id)" />
+          <compress-outlined v-else-if="contextMenu.node" />
+          {{ contextMenu.node && expandedNodes.has(contextMenu.node.id) ? '收起' : '展开' }}
+        </div>
+        
+        <!-- 分隔线 -->
+        <div class="context-menu-divider"></div>
+        
+        <!-- 编辑 -->
         <div class="context-menu-item" @click="handleContextMenuAction('edit')">
-          <edit-outlined /> Edit
+          <edit-outlined /> 编辑
         </div>
-        <div class="context-menu-item" @click="handleContextMenuAction('rename')">
-          <edit-outlined /> Rename
-        </div>
+        
+        <!-- 删除 -->
         <div class="context-menu-item danger" @click="handleContextMenuAction('delete')">
-          <delete-outlined /> Delete
+          <delete-outlined /> 删除
         </div>
       </div>
 
@@ -454,6 +509,12 @@ const formatDate = (timestamp: number) => {
 
 .context-menu-item.danger:hover {
   background: #fee2e2;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 4px 0;
 }
 
 /* Legend */

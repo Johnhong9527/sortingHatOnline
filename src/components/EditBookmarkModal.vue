@@ -50,13 +50,13 @@ const handleSave = async () => {
     } else {
       // Add new bookmark
       const newBookmark: Omit<BookmarkNode, 'id'> = {
-        parentId: null, // Root level
         title: formState.value.title,
         url: formState.value.url || null,
         addDate: Date.now(),
         lastModified: Date.now(),
         tags: formState.value.tags,
         isDuplicate: false,
+        children: [],
       }
       await bookmarkStore.addBookmark('root', newBookmark)
       message.success('Bookmark added successfully')

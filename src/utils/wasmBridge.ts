@@ -17,6 +17,7 @@ import init, {
   add_node,
   add_tag,
   remove_tag,
+  move_node,
 } from '../../public/wasm/bookmark_wasm.js'
 
 /**
@@ -24,7 +25,6 @@ import init, {
  */
 export interface BookmarkNode {
   id: string
-  parentId: string | null
   title: string
   url: string | null
   addDate: number
@@ -32,7 +32,7 @@ export interface BookmarkNode {
   icon?: string
   tags: string[]
   isDuplicate: boolean
-  children?: BookmarkNode[] // Reconstructed in TypeScript
+  children: BookmarkNode[]
 }
 
 /**
@@ -304,6 +304,29 @@ export class WasmBridge {
     } catch (error) {
       console.error('Error removing tag:', error)
       throw new Error(`Failed to remove tag: ${error}`)
+    }
+  }
+
+  /**
+   * Move a bookmark node to a new parent
+   * @param nodes - Array of bookmark nodes
+   * @param nodeId - ID of the node to move
+   * @param newParentId - ID of the new parent node (use "root" for root level)
+   * @returns Updated array of bookmark nodes
+   */
+  async moveNode(
+    nodes: BookmarkNode[],
+    nodeId: string,
+    newParentId: string
+  ): Promise<BookmarkNode[]> {
+    this.ensureInitialized()
+
+    try {
+      const result = move_node(nodes, nodeId, newParentId)
+      return result as BookmarkNode[]
+    } catch (error) {
+      console.error('Error moving node:', error)
+      throw new Error(`Failed to move node: ${error}`)
     }
   }
 }

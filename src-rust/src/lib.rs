@@ -14,7 +14,6 @@ pub fn init_panic_hook() {
 #[serde(rename_all = "camelCase")]
 pub struct BookmarkNode {
     pub id: String,
-    pub parent_id: Option<String>,
     pub title: String,
     pub url: Option<String>,
     pub add_date: u64,
@@ -22,19 +21,18 @@ pub struct BookmarkNode {
     pub icon: Option<String>,
     pub tags: Vec<String>,
     pub is_duplicate: bool,
+    pub children: Vec<BookmarkNode>,
 }
 
 impl BookmarkNode {
     fn new(
         id: String,
-        parent_id: Option<String>,
         title: String,
         url: Option<String>,
         add_date: u64,
     ) -> Self {
         Self {
             id,
-            parent_id,
             title,
             url,
             add_date,
@@ -42,6 +40,7 @@ impl BookmarkNode {
             icon: None,
             tags: Vec::new(),
             is_duplicate: false,
+            children: Vec::new(),
         }
     }
 
@@ -57,60 +56,87 @@ pub struct DuplicateGroup {
     pub nodes: Vec<BookmarkNode>,
 }
 
+// Helper functions for tree operations
+
+// Find a node by ID (mutable)
+fn find_node_by_id_mut<'a>(
+    nodes: &'a mut [BookmarkNode],
+    target_id: &str,
+) -> Option<&'a mut BookmarkNode> {
+    for node in nodes {
+        if node.id == target_id {
+            return Some(node);
+        }
+        if let Some(found) = find_node_by_id_mut(&mut node.children, target_id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+// Collect all nodes from tree into a flat vector
+fn collect_all_nodes(nodes: &[BookmarkNode], result: &mut Vec<BookmarkNode>) {
+    for node in nodes {
+        result.push(node.clone());
+        collect_all_nodes(&node.children, result);
+    }
+}
+
+// Remove a node by ID from tree (recursively deletes all children)
+fn remove_node_by_id(nodes: &mut Vec<BookmarkNode>, target_id: &str) -> bool {
+    for i in (0..nodes.len()).rev() {
+        if nodes[i].id == target_id {
+            // Found the node - remove it (children are automatically dropped)
+            nodes.remove(i);
+            return true;
+        }
+        // Recursively search in children
+        if remove_node_by_id(&mut nodes[i].children, target_id) {
+            return true;
+        }
+    }
+    false
+}
+
 // Parse HTML bookmarks file
 #[wasm_bindgen]
 pub fn parse_html(html: &str) -> Result<JsValue, JsValue> {
     let document = Html::parse_document(html);
-    let mut nodes = Vec::new();
     let mut id_counter = 0;
 
-    // Create virtual root node
+    // Create root node
     let root_id = "root".to_string();
-    let root_node = BookmarkNode::new(
+    let mut root_node = BookmarkNode::new(
         root_id.clone(),
-        None,
         "Bookmarks".to_string(),
         None,
         0,
     );
-    nodes.push(root_node);
 
-    // Recursive parsing function
-    fn parse_node(
-        element: scraper::ElementRef, // Current DT element
-        parent_id: Option<String>,
-        nodes: &mut Vec<BookmarkNode>,
+    // Recursive parsing function: processes a DT element and returns a BookmarkNode
+    fn process_dt_element(
+        element: scraper::ElementRef,
         id_counter: &mut u64,
-    ) {
-        // 1. Check if this is a folder (contains H3 tag)
+    ) -> Option<BookmarkNode> {
+        // Case A: Folder (contains H3 tag)
         if let Some(h3) = element.select(&Selector::parse("h3").unwrap()).next() {
             let title = h3.text().collect::<String>();
             let add_date = h3
                 .value()
                 .attr("add_date")
                 .and_then(|d| d.parse::<u64>().ok())
-                .unwrap_or(0) * 1000; // Convert seconds to milliseconds
+                .unwrap_or(0)
+                * 1000; // Convert seconds to milliseconds
 
             let folder_id = format!("node_{}", *id_counter);
             *id_counter += 1;
 
-            let folder = BookmarkNode::new(
-                folder_id.clone(),
-                parent_id.clone(),
-                title,
-                None,
-                add_date,
-            );
-            nodes.push(folder);
+            let mut folder = BookmarkNode::new(folder_id.clone(), title, None, add_date);
 
-            // === Core fix: Dual search strategy for DL element ===
-            // Different browsers export different HTML structures:
-            // - Chrome/Edge: DL is a child of DT
-            // - Old Netscape: DL is a sibling of DT
-
+            // === Core logic: Find DL element (compatible with Chrome and Netscape) ===
             let mut target_dl = None;
 
-            // Strategy A: Look for DL inside current DT (modern browser format)
+            // Strategy 1: Look for DL inside current DT (modern browser format)
             for child in element.children() {
                 if let Some(child_el) = scraper::ElementRef::wrap(child) {
                     if child_el.value().name() == "dl" {
@@ -120,13 +146,11 @@ pub fn parse_html(html: &str) -> Result<JsValue, JsValue> {
                 }
             }
 
-            // Strategy B: If not found inside, look in siblings (old Netscape format)
-            // Must loop to skip Text Nodes (whitespace/newlines)
+            // Strategy 2: If not found inside, look in siblings (old Netscape format)
             if target_dl.is_none() {
                 let mut sibling_node = element.next_sibling();
                 while let Some(node) = sibling_node {
                     if let Some(el) = scraper::ElementRef::wrap(node) {
-                        // Found DL - this is what we're looking for
                         if el.value().name() == "dl" {
                             target_dl = Some(el);
                             break;
@@ -136,25 +160,27 @@ pub fn parse_html(html: &str) -> Result<JsValue, JsValue> {
                             break;
                         }
                     }
-                    // Continue to next sibling, skipping whitespace text nodes
                     sibling_node = node.next_sibling();
                 }
             }
 
-            // If we found a DL, recursively parse its contents
+            // If we found a DL, recursively process its DT children
             if let Some(dl_ref) = target_dl {
                 for child in dl_ref.children() {
                     if let Some(child_element) = scraper::ElementRef::wrap(child) {
-                        // Only DT elements contain bookmarks or folders
                         if child_element.value().name() == "dt" {
-                            parse_node(child_element, Some(folder_id.clone()), nodes, id_counter);
+                            if let Some(child_node) = process_dt_element(child_element, id_counter)
+                            {
+                                folder.children.push(child_node);
+                            }
                         }
                     }
                 }
             }
-            // === End of core fix ===
+
+            return Some(folder);
         }
-        // 2. Check if this is a bookmark (contains A tag)
+        // Case B: Bookmark (contains A tag)
         else if let Some(a) = element.select(&Selector::parse("a").unwrap()).next() {
             let title = a.text().collect::<String>();
             let url = a.value().attr("href").map(|s| s.to_string());
@@ -162,38 +188,40 @@ pub fn parse_html(html: &str) -> Result<JsValue, JsValue> {
                 .value()
                 .attr("add_date")
                 .and_then(|d| d.parse::<u64>().ok())
-                .unwrap_or(0) * 1000; // Convert seconds to milliseconds
+                .unwrap_or(0)
+                * 1000; // Convert seconds to milliseconds
             let icon = a.value().attr("icon").map(|s| s.to_string());
 
             let bookmark_id = format!("node_{}", *id_counter);
             *id_counter += 1;
 
-            let mut bookmark = BookmarkNode::new(
-                bookmark_id,
-                parent_id.clone(),
-                title,
-                url,
-                add_date,
-            );
+            let mut bookmark = BookmarkNode::new(bookmark_id, title, url, add_date);
             bookmark.icon = icon;
-            nodes.push(bookmark);
+
+            return Some(bookmark);
         }
+
+        None
     }
 
     // Find the root DL element
     let dl_selector = Selector::parse("dl").unwrap();
     if let Some(root_dl) = document.select(&dl_selector).next() {
-        // Parse direct children DT elements of root DL
+        // Process direct children DT elements of root DL
         for child in root_dl.children() {
             if let Some(child_element) = scraper::ElementRef::wrap(child) {
                 if child_element.value().name() == "dt" {
-                    parse_node(child_element, Some(root_id.clone()), &mut nodes, &mut id_counter);
+                    if let Some(node) = process_dt_element(child_element, &mut id_counter) {
+                        root_node.children.push(node);
+                    }
                 }
             }
         }
     }
 
-    serde_wasm_bindgen::to_value(&nodes).map_err(|e| JsValue::from_str(&e.to_string()))
+    // Return array containing root node
+    let result = vec![root_node];
+    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 // Find duplicates by URL
@@ -202,12 +230,19 @@ pub fn find_duplicates(nodes_js: JsValue) -> Result<JsValue, JsValue> {
     let nodes: Vec<BookmarkNode> = serde_wasm_bindgen::from_value(nodes_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
+    // Collect all nodes from tree into flat vector
+    let mut all_nodes = Vec::new();
+    collect_all_nodes(&nodes, &mut all_nodes);
+
     let mut url_map: HashMap<String, Vec<BookmarkNode>> = HashMap::new();
 
     // Group bookmarks by URL
-    for node in nodes {
+    for node in all_nodes {
         if let Some(url) = &node.url {
-            url_map.entry(url.clone()).or_insert_with(Vec::new).push(node);
+            url_map
+                .entry(url.clone())
+                .or_insert_with(Vec::new)
+                .push(node);
         }
     }
 
@@ -229,27 +264,51 @@ pub fn merge_trees(base_js: JsValue, target_js: JsValue) -> Result<JsValue, JsVa
     let target: Vec<BookmarkNode> = serde_wasm_bindgen::from_value(target_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    // Simple merge: append target to base
-    // In a real implementation, you'd want more sophisticated merging logic
+    // Merge by extending base with target trees
     base.extend(target);
 
-    // Mark duplicates
-    let mut url_map: HashMap<String, Vec<usize>> = HashMap::new();
-    for (idx, node) in base.iter().enumerate() {
+    // Mark duplicates recursively
+    mark_duplicates_in_tree(&mut base);
+
+    serde_wasm_bindgen::to_value(&base).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// Helper function to mark duplicates in tree
+fn mark_duplicates_in_tree(nodes: &mut Vec<BookmarkNode>) {
+    // Collect all nodes
+    let mut all_nodes = Vec::new();
+    collect_all_nodes(nodes, &mut all_nodes);
+
+    // Build URL map
+    let mut url_map: HashMap<String, Vec<String>> = HashMap::new();
+    for node in &all_nodes {
         if let Some(url) = &node.url {
-            url_map.entry(url.clone()).or_insert_with(Vec::new).push(idx);
+            url_map
+                .entry(url.clone())
+                .or_insert_with(Vec::new)
+                .push(node.id.clone());
         }
     }
 
-    for indices in url_map.values() {
-        if indices.len() > 1 {
-            for &idx in indices {
-                base[idx].is_duplicate = true;
+    // Mark nodes with duplicate URLs
+    for (_, ids) in url_map {
+        if ids.len() > 1 {
+            for id in ids {
+                mark_node_as_duplicate(nodes, &id);
             }
         }
     }
+}
 
-    serde_wasm_bindgen::to_value(&base).map_err(|e| JsValue::from_str(&e.to_string()))
+// Helper function to mark a node as duplicate
+fn mark_node_as_duplicate(nodes: &mut [BookmarkNode], target_id: &str) {
+    for node in nodes {
+        if node.id == target_id {
+            node.is_duplicate = true;
+            return;
+        }
+        mark_node_as_duplicate(&mut node.children, target_id);
+    }
 }
 
 // Search nodes by query
@@ -261,33 +320,43 @@ pub fn search_nodes(nodes_js: JsValue, query: &str) -> Result<JsValue, JsValue> 
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    // Check for tag-specific search
-    if query_lower.starts_with("tag:") {
-        let tag = query_lower.strip_prefix("tag:").unwrap();
-        for node in nodes {
-            if node.tags.iter().any(|t| t.to_lowercase().contains(tag)) {
-                results.push(node.id);
-            }
-        }
-    } else {
-        // General search across title, URL, and tags
-        for node in nodes {
-            let title_match = node.title.to_lowercase().contains(&query_lower);
-            let url_match = node
-                .url
-                .as_ref()
-                .map(|u| u.to_lowercase().contains(&query_lower))
-                .unwrap_or(false);
-            let tag_match = node
-                .tags
-                .iter()
-                .any(|t| t.to_lowercase().contains(&query_lower));
+    // Recursive search function
+    fn search_recursive(nodes: &[BookmarkNode], query: &str, results: &mut Vec<String>) {
+        // Check for tag-specific search
+        let is_tag_search = query.starts_with("tag:");
+        let tag_query = if is_tag_search {
+            query.strip_prefix("tag:").unwrap_or("")
+        } else {
+            ""
+        };
 
-            if title_match || url_match || tag_match {
-                results.push(node.id);
+        for node in nodes {
+            let matches = if is_tag_search {
+                // Tag-specific search
+                node.tags.iter().any(|t| t.to_lowercase().contains(tag_query))
+            } else {
+                // General search across title, URL, and tags
+                let title_match = node.title.to_lowercase().contains(query);
+                let url_match = node
+                    .url
+                    .as_ref()
+                    .map(|u| u.to_lowercase().contains(query))
+                    .unwrap_or(false);
+                let tag_match = node.tags.iter().any(|t| t.to_lowercase().contains(query));
+
+                title_match || url_match || tag_match
+            };
+
+            if matches {
+                results.push(node.id.clone());
             }
+
+            // Recurse into children
+            search_recursive(&node.children, query, results);
         }
     }
+
+    search_recursive(&nodes, &query_lower, &mut results);
 
     serde_wasm_bindgen::to_value(&results).map_err(|e| JsValue::from_str(&e.to_string()))
 }
@@ -303,38 +372,33 @@ pub fn serialize_to_html(nodes_js: JsValue) -> Result<String, JsValue> {
     html.push_str("<TITLE>Bookmarks</TITLE>\n");
     html.push_str("<H1>Bookmarks</H1>\n<DL><p>\n");
 
-    fn build_tree(
-        nodes: &[BookmarkNode],
-        parent_id: Option<&str>,
-        html: &mut String,
-    ) {
+    fn serialize_nodes(nodes: &[BookmarkNode], html: &mut String, indent: usize) {
+        let indent_str = "    ".repeat(indent);
+
         for node in nodes {
-            let node_parent = node.parent_id.as_deref();
-            if node_parent == parent_id {
-                if node.is_folder() {
-                    html.push_str(&format!(
-                        "    <DT><H3 ADD_DATE=\"{}\">{}</H3>\n",
-                        node.add_date, node.title
-                    ));
-                    html.push_str("    <DL><p>\n");
-                    build_tree(nodes, Some(&node.id), html);
-                    html.push_str("    </DL><p>\n");
-                } else if let Some(url) = &node.url {
-                    let icon_attr = node
-                        .icon
-                        .as_ref()
-                        .map(|i| format!(" ICON=\"{}\"", i))
-                        .unwrap_or_default();
-                    html.push_str(&format!(
-                        "    <DT><A HREF=\"{}\" ADD_DATE=\"{}\"{}>{}</A>\n",
-                        url, node.add_date, icon_attr, node.title
-                    ));
-                }
+            if node.is_folder() {
+                html.push_str(&format!(
+                    "{}<DT><H3 ADD_DATE=\"{}\">{}</H3>\n",
+                    indent_str, node.add_date, node.title
+                ));
+                html.push_str(&format!("{}<DL><p>\n", indent_str));
+                serialize_nodes(&node.children, html, indent + 1);
+                html.push_str(&format!("{}</DL><p>\n", indent_str));
+            } else if let Some(url) = &node.url {
+                let icon_attr = node
+                    .icon
+                    .as_ref()
+                    .map(|i| format!(" ICON=\"{}\"", i))
+                    .unwrap_or_default();
+                html.push_str(&format!(
+                    "{}<DT><A HREF=\"{}\" ADD_DATE=\"{}\"{}>{}</A>\n",
+                    indent_str, url, node.add_date, icon_attr, node.title
+                ));
             }
         }
     }
 
-    build_tree(&nodes, None, &mut html);
+    serialize_nodes(&nodes, &mut html, 1);
     html.push_str("</DL><p>\n");
 
     Ok(html)
@@ -357,7 +421,11 @@ pub fn serialize_to_csv(nodes_js: JsValue) -> Result<String, JsValue> {
 
     let mut csv = String::from("Title,URL,Add Date,Tags,Type\n");
 
-    for node in nodes {
+    // Flatten tree first
+    let mut all_nodes = Vec::new();
+    collect_all_nodes(&nodes, &mut all_nodes);
+
+    for node in all_nodes {
         let url = node.url.as_deref().unwrap_or("");
         let tags = node.tags.join(";");
         let node_type = if node.is_folder() { "Folder" } else { "Bookmark" };
@@ -383,28 +451,20 @@ pub fn serialize_to_markdown(nodes_js: JsValue) -> Result<String, JsValue> {
 
     let mut md = String::from("# Bookmarks\n\n");
 
-    fn build_markdown(
-        nodes: &[BookmarkNode],
-        parent_id: Option<&str>,
-        md: &mut String,
-        level: usize,
-    ) {
+    fn build_markdown(nodes: &[BookmarkNode], md: &mut String, level: usize) {
         let indent = "  ".repeat(level);
 
         for node in nodes {
-            let node_parent = node.parent_id.as_deref();
-            if node_parent == parent_id {
-                if node.is_folder() {
-                    md.push_str(&format!("{}## {}\n\n", indent, node.title));
-                    build_markdown(nodes, Some(&node.id), md, level + 1);
-                } else if let Some(url) = &node.url {
-                    md.push_str(&format!("{}- [{}]({})\n", indent, node.title, url));
-                }
+            if node.is_folder() {
+                md.push_str(&format!("{}## {}\n\n", indent, node.title));
+                build_markdown(&node.children, md, level + 1);
+            } else if let Some(url) = &node.url {
+                md.push_str(&format!("{}- [{}]({})\n", indent, node.title, url));
             }
         }
     }
 
-    build_markdown(&nodes, None, &mut md, 0);
+    build_markdown(&nodes, &mut md, 0);
 
     Ok(md)
 }
@@ -421,13 +481,47 @@ pub fn update_node(
     let updates: HashMap<String, serde_json::Value> = serde_wasm_bindgen::from_value(updates_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    if let Some(node) = nodes.iter_mut().find(|n| n.id == node_id) {
+    if let Some(node) = find_node_by_id_mut(&mut nodes, node_id) {
+        // Update title
         if let Some(title) = updates.get("title").and_then(|v| v.as_str()) {
             node.title = title.to_string();
         }
-        if let Some(url) = updates.get("url").and_then(|v| v.as_str()) {
-            node.url = Some(url.to_string());
+        
+        // Update URL (can be null to convert bookmark to folder)
+        if updates.contains_key("url") {
+            if let Some(url_val) = updates.get("url") {
+                if url_val.is_null() {
+                    node.url = None;
+                } else if let Some(url) = url_val.as_str() {
+                    node.url = Some(url.to_string());
+                }
+            }
         }
+        
+        // Update tags
+        if let Some(tags_val) = updates.get("tags") {
+            if let Ok(tags) = serde_json::from_value::<Vec<String>>(tags_val.clone()) {
+                node.tags = tags;
+            }
+        }
+        
+        // Update icon
+        if updates.contains_key("icon") {
+            if let Some(icon_val) = updates.get("icon") {
+                if icon_val.is_null() {
+                    node.icon = None;
+                } else if let Some(icon) = icon_val.as_str() {
+                    node.icon = Some(icon.to_string());
+                }
+            }
+        }
+        
+        // Update isDuplicate flag
+        if let Some(is_duplicate) = updates.get("isDuplicate").and_then(|v| v.as_bool()) {
+            node.is_duplicate = is_duplicate;
+        }
+        
+        // Always update last_modified timestamp
         node.last_modified = js_sys::Date::now() as u64;
     }
 
@@ -440,7 +534,9 @@ pub fn delete_node(nodes_js: JsValue, node_id: &str) -> Result<JsValue, JsValue>
     let mut nodes: Vec<BookmarkNode> = serde_wasm_bindgen::from_value(nodes_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    nodes.retain(|n| n.id != node_id && n.parent_id.as_deref() != Some(node_id));
+    if !remove_node_by_id(&mut nodes, node_id) {
+        return Err(JsValue::from_str(&format!("Node with id '{}' not found", node_id)));
+    }
 
     serde_wasm_bindgen::to_value(&nodes).map_err(|e| JsValue::from_str(&e.to_string()))
 }
@@ -457,10 +553,15 @@ pub fn add_node(
     let mut new_node: BookmarkNode = serde_wasm_bindgen::from_value(node_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    new_node.parent_id = Some(parent_id.to_string());
     new_node.id = format!("node_{}", js_sys::Date::now() as u64);
 
-    nodes.push(new_node);
+    // Find parent and add to its children
+    if let Some(parent) = find_node_by_id_mut(&mut nodes, parent_id) {
+        parent.children.push(new_node);
+    } else {
+        // Parent not found, add to root
+        nodes.push(new_node);
+    }
 
     serde_wasm_bindgen::to_value(&nodes).map_err(|e| JsValue::from_str(&e.to_string()))
 }
@@ -471,7 +572,7 @@ pub fn add_tag(nodes_js: JsValue, node_id: &str, tag: &str) -> Result<JsValue, J
     let mut nodes: Vec<BookmarkNode> = serde_wasm_bindgen::from_value(nodes_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    if let Some(node) = nodes.iter_mut().find(|n| n.id == node_id) {
+    if let Some(node) = find_node_by_id_mut(&mut nodes, node_id) {
         if !node.tags.contains(&tag.to_string()) {
             node.tags.push(tag.to_string());
         }
@@ -486,8 +587,60 @@ pub fn remove_tag(nodes_js: JsValue, node_id: &str, tag: &str) -> Result<JsValue
     let mut nodes: Vec<BookmarkNode> = serde_wasm_bindgen::from_value(nodes_js)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    if let Some(node) = nodes.iter_mut().find(|n| n.id == node_id) {
+    if let Some(node) = find_node_by_id_mut(&mut nodes, node_id) {
         node.tags.retain(|t| t != tag);
+    }
+
+    serde_wasm_bindgen::to_value(&nodes).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// Move a node to a new parent
+#[wasm_bindgen]
+pub fn move_node(
+    nodes_js: JsValue,
+    node_id: &str,
+    new_parent_id: &str,
+) -> Result<JsValue, JsValue> {
+    let mut nodes: Vec<BookmarkNode> = serde_wasm_bindgen::from_value(nodes_js)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    // Find and remove the node from its current location
+    let mut moved_node: Option<BookmarkNode> = None;
+    
+    // Helper function to remove node from tree
+    fn remove_node_recursive(nodes: &mut Vec<BookmarkNode>, target_id: &str, result: &mut Option<BookmarkNode>) -> bool {
+        for i in (0..nodes.len()).rev() {
+            if nodes[i].id == target_id {
+                *result = Some(nodes.remove(i));
+                return true;
+            }
+            if remove_node_recursive(&mut nodes[i].children, target_id, result) {
+                return true;
+            }
+        }
+        false
+    }
+
+    if !remove_node_recursive(&mut nodes, node_id, &mut moved_node) {
+        return Err(JsValue::from_str(&format!("Node with id '{}' not found", node_id)));
+    }
+
+    let node_to_move = moved_node.unwrap();
+
+    // Add node to new parent
+    if new_parent_id == "root" || new_parent_id.is_empty() {
+        // Add to root level
+        nodes.push(node_to_move);
+    } else {
+        // Find new parent and add to its children
+        if let Some(parent) = find_node_by_id_mut(&mut nodes, new_parent_id) {
+            parent.children.push(node_to_move);
+        } else {
+            // Parent not found, restore node to original position and return error
+            // We can't easily restore, so just add to root as fallback
+            nodes.push(node_to_move);
+            return Err(JsValue::from_str(&format!("Parent node with id '{}' not found", new_parent_id)));
+        }
     }
 
     serde_wasm_bindgen::to_value(&nodes).map_err(|e| JsValue::from_str(&e.to_string()))

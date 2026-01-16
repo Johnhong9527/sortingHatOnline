@@ -1,56 +1,14 @@
 /**
  * Tree utility functions for bookmark manipulation
- * Handles conversion between flat and nested structures
  */
 
 import type { BookmarkNode } from './wasmBridge'
 
 /**
- * Convert flat array of nodes to nested tree structure
- * @param nodes - Flat array of bookmark nodes
- * @returns Nested tree structure with children
- */
-export function flatToTree(nodes: BookmarkNode[]): BookmarkNode[] {
-  if (!nodes || nodes.length === 0) {
-    return []
-  }
-
-  // Create a map for quick lookup
-  const nodeMap = new Map<string, BookmarkNode>()
-  const rootNodes: BookmarkNode[] = []
-
-  // First pass: create map and initialize children arrays
-  nodes.forEach((node) => {
-    nodeMap.set(node.id, { ...node, children: [] })
-  })
-
-  // Second pass: build tree structure
-  nodes.forEach((node) => {
-    const treeNode = nodeMap.get(node.id)!
-
-    if (node.parentId === null || node.parentId === undefined) {
-      // Root node
-      rootNodes.push(treeNode)
-    } else {
-      // Child node - add to parent's children
-      const parent = nodeMap.get(node.parentId)
-      if (parent) {
-        parent.children = parent.children || []
-        parent.children.push(treeNode)
-      } else {
-        // Parent not found, treat as root
-        rootNodes.push(treeNode)
-      }
-    }
-  })
-
-  return rootNodes
-}
-
-/**
- * Convert nested tree structure to flat array
+ * Convert nested tree structure to flat array (for backward compatibility)
  * @param tree - Nested tree structure
  * @returns Flat array of bookmark nodes
+ * @deprecated Use nested structure directly
  */
 export function treeToFlat(tree: BookmarkNode[]): BookmarkNode[] {
   const flat: BookmarkNode[] = []
@@ -312,23 +270,59 @@ export function sortTree(
 }
 
 /**
- * Move a node to a new parent
- * @param nodes - Flat array of nodes
+ * Move a node to a new parent in tree structure
+ * @param tree - Tree structure
  * @param nodeId - ID of node to move
  * @param newParentId - ID of new parent (null for root)
- * @returns Updated flat array
+ * @returns Updated tree
  */
 export function moveNode(
-  nodes: BookmarkNode[],
+  tree: BookmarkNode[],
   nodeId: string,
   newParentId: string | null
 ): BookmarkNode[] {
-  return nodes.map((node) => {
-    if (node.id === nodeId) {
-      return { ...node, parentId: newParentId }
+  // 1. Find and remove node from current location
+  let movedNode: BookmarkNode | null = null
+
+  function removeNode(nodes: BookmarkNode[]): BookmarkNode[] {
+    return nodes.filter((node) => {
+      if (node.id === nodeId) {
+        movedNode = node
+        return false
+      }
+      if (node.children) {
+        node.children = removeNode(node.children)
+      }
+      return true
+    })
+  }
+
+  let newTree = removeNode(JSON.parse(JSON.stringify(tree)))
+
+  if (!movedNode) return tree
+
+  // 2. Add node to new parent
+  if (newParentId === null) {
+    // Add to root
+    newTree.push(movedNode)
+  } else {
+    // Find parent and add to its children
+    function addToParent(nodes: BookmarkNode[]): boolean {
+      for (const node of nodes) {
+        if (node.id === newParentId) {
+          node.children.push(movedNode!)
+          return true
+        }
+        if (node.children && addToParent(node.children)) {
+          return true
+        }
+      }
+      return false
     }
-    return node
-  })
+    addToParent(newTree)
+  }
+
+  return newTree
 }
 
 /**

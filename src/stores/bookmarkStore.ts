@@ -4,16 +4,13 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, toRaw } from 'vue'
 import { wasmBridge } from '@/utils/wasmBridge'
 import type { BookmarkNode, DuplicateGroup, ExportFormat } from '@/utils/wasmBridge'
 import {
-  flatToTree,
-  treeToFlat,
   getAllTags,
   countBookmarks,
   countFolders,
-  cloneTree,
 } from '@/utils/treeUtils'
 import { repository } from '@/db/repository'
 import type { StoredFile } from '@/db/schema'
@@ -63,21 +60,25 @@ export const useBookmarkStore = defineStore('bookmark', () => {
 
   const activeFile = computed(() => {
     if (!activeFileId.value) return null
-    return files.value.get(activeFileId.value) || null
+    const file = files.value.get(activeFileId.value) || null
+    console.log('🔍 activeFile computed, nodes count:', file?.nodes.length)
+    return file
   })
 
   const activeTree = computed(() => {
     if (!activeFile.value) return []
-    return flatToTree(activeFile.value.nodes)
+    console.log('🌳 activeTree computed, tree length:', activeFile.value.nodes.length)
+    return activeFile.value.nodes
   })
 
   const mergedTree = computed(() => {
-    if (mergedNodes.value.length === 0) return []
-    return flatToTree(mergedNodes.value)
+    return mergedNodes.value
   })
 
   const currentTree = computed(() => {
-    return mergedTree.value.length > 0 ? mergedTree.value : activeTree.value
+    const tree = mergedTree.value.length > 0 ? mergedTree.value : activeTree.value
+    console.log('🎯 currentTree computed, tree length:', tree.length)
+    return tree
   })
 
   const stats = computed(() => {
@@ -94,6 +95,11 @@ export const useBookmarkStore = defineStore('bookmark', () => {
   const canUndo = computed(() => history.value.past.length > 0)
   const canRedo = computed(() => history.value.future.length > 0)
 
+  // Current nodes source (merged or active file)
+  const currentNodes = computed(() => 
+    mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
+  )
+
   // ==================== Watchers ====================
 
   // Auto-persist merged tree when it changes
@@ -109,6 +115,35 @@ export const useBookmarkStore = defineStore('bookmark', () => {
   }, { deep: true })
 
   // ==================== Actions ====================
+
+  /**
+   * Apply node updates and persist changes
+   * This eliminates the special case of checking merged vs active file
+   */
+  async function applyNodeUpdates(updatedNodes: BookmarkNode[]): Promise<void> {
+    if (mergedNodes.value.length > 0) {
+      mergedNodes.value = updatedNodes
+    } else if (activeFile.value && activeFileId.value) {
+      const fileInfo = files.value.get(activeFileId.value)
+      if (fileInfo) {
+        // Update the file info with new nodes
+        // Create a new array to ensure Vue reactivity
+        const updatedFileInfo = {
+          ...fileInfo,
+          nodes: [...updatedNodes]  // Create new array reference
+        }
+        // Create a new Map to trigger Vue reactivity
+        const newFiles = new Map(files.value)
+        newFiles.set(activeFileId.value, updatedFileInfo)
+        files.value = newFiles
+
+        console.log('🔄 Applied node updates, new files Map created')
+        console.log('Updated file nodes count:', updatedFileInfo.nodes.length)
+      }
+      await persistActiveFile()
+    }
+    updateAllTags()
+  }
 
   /**
    * Initialize Wasm module and load persisted data
@@ -184,7 +219,8 @@ export const useBookmarkStore = defineStore('bookmark', () => {
         name: fileInfo.name,
         uploadDate: fileInfo.uploadDate,
         rawHtml,
-        nodes: fileInfo.nodes,
+        // Use toRaw to convert Vue reactive proxies to plain objects
+        nodes: JSON.parse(JSON.stringify(toRaw(fileInfo.nodes))),
       }
       await repository.files.saveFile(storedFile)
     } catch (error) {
@@ -202,7 +238,8 @@ export const useBookmarkStore = defineStore('bookmark', () => {
       const storedFile = await repository.files.getFile(activeFile.value.id)
       if (storedFile) {
         // Update the stored file with new nodes
-        storedFile.nodes = activeFile.value.nodes
+        // Use toRaw to convert Vue reactive proxies to plain objects
+        storedFile.nodes = JSON.parse(JSON.stringify(toRaw(activeFile.value.nodes)))
         await repository.files.saveFile(storedFile)
         console.log(`✅ Persisted active file ${activeFile.value.id} to IndexedDB`)
       }
@@ -217,7 +254,10 @@ export const useBookmarkStore = defineStore('bookmark', () => {
   async function persistMergedTree() {
     try {
       if (mergedNodes.value.length > 0) {
-        await repository.mergedTree.saveMergedTree(mergedNodes.value, duplicates.value)
+        // Use toRaw to convert Vue reactive proxies to plain objects
+        const plainNodes = JSON.parse(JSON.stringify(toRaw(mergedNodes.value)))
+        const plainDuplicates = JSON.parse(JSON.stringify(toRaw(duplicates.value)))
+        await repository.mergedTree.saveMergedTree(plainNodes, plainDuplicates)
       }
     } catch (error) {
       console.error('Failed to persist merged tree:', error)
@@ -360,15 +400,20 @@ export const useBookmarkStore = defineStore('bookmark', () => {
    */
   async function resolveDuplicate(duplicateGroup: DuplicateGroup, keepNodeId: string): Promise<void> {
     try {
+      pushToHistory()
+
       // Remove all nodes in the group except the one to keep
       const nodesToRemove = duplicateGroup.nodes
         .filter((node) => node.id !== keepNodeId)
         .map((node) => node.id)
 
-      // Remove nodes
+      // Batch delete all nodes
+      let updated = currentNodes.value
       for (const nodeId of nodesToRemove) {
-        mergedNodes.value = await wasmBridge.deleteNode(mergedNodes.value, nodeId)
+        updated = await wasmBridge.deleteNode(updated, nodeId)
       }
+
+      await applyNodeUpdates(updated)
 
       // Update duplicates list
       await findDuplicatesInMerged()
@@ -436,23 +481,9 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     try {
       pushToHistory()
 
-      const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
-      const updated = await wasmBridge.updateNode(nodes, nodeId, updates)
+      const updated = await wasmBridge.updateNode(currentNodes.value, nodeId, updates)
+      await applyNodeUpdates(updated)
 
-      if (mergedNodes.value.length > 0) {
-        mergedNodes.value = updated
-      } else if (activeFile.value && activeFileId.value) {
-        // Update the file in the Map to trigger reactivity
-        const fileInfo = files.value.get(activeFileId.value)
-        if (fileInfo) {
-          fileInfo.nodes = updated
-          files.value.set(activeFileId.value, fileInfo)
-        }
-        // Persist to IndexedDB
-        await persistActiveFile()
-      }
-
-      updateAllTags()
       console.log(`✅ Updated bookmark ${nodeId}`)
     } catch (error) {
       console.error('Failed to update bookmark:', error)
@@ -467,23 +498,9 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     try {
       pushToHistory()
 
-      const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
-      const updated = await wasmBridge.deleteNode(nodes, nodeId)
+      const updated = await wasmBridge.deleteNode(currentNodes.value, nodeId)
+      await applyNodeUpdates(updated)
 
-      if (mergedNodes.value.length > 0) {
-        mergedNodes.value = updated
-      } else if (activeFile.value && activeFileId.value) {
-        // Update the file in the Map to trigger reactivity
-        const fileInfo = files.value.get(activeFileId.value)
-        if (fileInfo) {
-          fileInfo.nodes = updated
-          files.value.set(activeFileId.value, fileInfo)
-        }
-        // Persist to IndexedDB
-        await persistActiveFile()
-      }
-
-      updateAllTags()
       console.log(`✅ Deleted bookmark ${nodeId}`)
     } catch (error) {
       console.error('Failed to delete bookmark:', error)
@@ -498,23 +515,16 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     try {
       pushToHistory()
 
-      const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
-      const updated = await wasmBridge.addNode(nodes, parentId, bookmark)
-
-      if (mergedNodes.value.length > 0) {
-        mergedNodes.value = updated
-      } else if (activeFile.value && activeFileId.value) {
-        // Update the file in the Map to trigger reactivity
-        const fileInfo = files.value.get(activeFileId.value)
-        if (fileInfo) {
-          fileInfo.nodes = updated
-          files.value.set(activeFileId.value, fileInfo)
-        }
-        // Persist to IndexedDB
-        await persistActiveFile()
+      // Rust WASM expects a complete BookmarkNode with id field (it will be overwritten)
+      // So we add a temporary id here
+      const bookmarkWithId: BookmarkNode = {
+        ...bookmark,
+        id: '' // Temporary id, will be overwritten by Rust
       }
 
-      updateAllTags()
+      const updated = await wasmBridge.addNode(currentNodes.value, parentId, bookmarkWithId)
+      await applyNodeUpdates(updated)
+
       console.log(`✅ Added new bookmark`)
     } catch (error) {
       console.error('Failed to add bookmark:', error)
@@ -527,13 +537,13 @@ export const useBookmarkStore = defineStore('bookmark', () => {
    */
   async function addFolder(parentId: string, name: string): Promise<void> {
     const folder: Omit<BookmarkNode, 'id'> = {
-      parentId,
       title: name,
       url: null,
       addDate: Date.now(),
       lastModified: Date.now(),
       tags: [],
       isDuplicate: false,
+      children: [],
     }
 
     await addBookmark(parentId, folder)
@@ -546,7 +556,8 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     try {
       pushToHistory()
 
-      await updateBookmark(nodeId, { parentId: newParentId })
+      const updated = await wasmBridge.moveNode(currentNodes.value, nodeId, newParentId)
+      await applyNodeUpdates(updated)
 
       console.log(`✅ Moved node ${nodeId} to ${newParentId}`)
     } catch (error) {
@@ -560,23 +571,9 @@ export const useBookmarkStore = defineStore('bookmark', () => {
    */
   async function addTag(nodeId: string, tag: string): Promise<void> {
     try {
-      const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
-      const updated = await wasmBridge.addTag(nodes, nodeId, tag)
+      const updated = await wasmBridge.addTag(currentNodes.value, nodeId, tag)
+      await applyNodeUpdates(updated)
 
-      if (mergedNodes.value.length > 0) {
-        mergedNodes.value = updated
-      } else if (activeFile.value && activeFileId.value) {
-        // Update the file in the Map to trigger reactivity
-        const fileInfo = files.value.get(activeFileId.value)
-        if (fileInfo) {
-          fileInfo.nodes = updated
-          files.value.set(activeFileId.value, fileInfo)
-        }
-        // Persist to IndexedDB
-        await persistActiveFile()
-      }
-
-      updateAllTags()
       console.log(`✅ Added tag "${tag}" to ${nodeId}`)
     } catch (error) {
       console.error('Failed to add tag:', error)
@@ -589,23 +586,9 @@ export const useBookmarkStore = defineStore('bookmark', () => {
    */
   async function removeTag(nodeId: string, tag: string): Promise<void> {
     try {
-      const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
-      const updated = await wasmBridge.removeTag(nodes, nodeId, tag)
+      const updated = await wasmBridge.removeTag(currentNodes.value, nodeId, tag)
+      await applyNodeUpdates(updated)
 
-      if (mergedNodes.value.length > 0) {
-        mergedNodes.value = updated
-      } else if (activeFile.value && activeFileId.value) {
-        // Update the file in the Map to trigger reactivity
-        const fileInfo = files.value.get(activeFileId.value)
-        if (fileInfo) {
-          fileInfo.nodes = updated
-          files.value.set(activeFileId.value, fileInfo)
-        }
-        // Persist to IndexedDB
-        await persistActiveFile()
-      }
-
-      updateAllTags()
       console.log(`✅ Removed tag "${tag}" from ${nodeId}`)
     } catch (error) {
       console.error('Failed to remove tag:', error)
@@ -618,18 +601,23 @@ export const useBookmarkStore = defineStore('bookmark', () => {
    */
   async function renameTag(oldTag: string, newTag: string): Promise<void> {
     try {
-      const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
+      pushToHistory()
 
-      // Find all nodes with the old tag
-      const nodesToUpdate = nodes.filter((node) => node.tags.includes(oldTag))
+      const nodes = currentNodes.value
+      const updated = nodes.map(node => {
+        if (node.tags.includes(oldTag)) {
+          return {
+            ...node,
+            tags: node.tags.map(t => t === oldTag ? newTag : t)
+          }
+        }
+        return node
+      })
 
-      // Update each node
-      for (const node of nodesToUpdate) {
-        await removeTag(node.id, oldTag)
-        await addTag(node.id, newTag)
-      }
+      const affectedCount = nodes.filter(node => node.tags.includes(oldTag)).length
+      await applyNodeUpdates(updated)
 
-      console.log(`✅ Renamed tag "${oldTag}" to "${newTag}" (${nodesToUpdate.length} bookmarks)`)
+      console.log(`✅ Renamed tag "${oldTag}" to "${newTag}" (${affectedCount} bookmarks)`)
     } catch (error) {
       console.error('Failed to rename tag:', error)
       throw error
@@ -641,17 +629,23 @@ export const useBookmarkStore = defineStore('bookmark', () => {
    */
   async function deleteTag(tag: string): Promise<void> {
     try {
-      const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
+      pushToHistory()
 
-      // Find all nodes with the tag
-      const nodesToUpdate = nodes.filter((node) => node.tags.includes(tag))
+      const nodes = currentNodes.value
+      const updated = nodes.map(node => {
+        if (node.tags.includes(tag)) {
+          return {
+            ...node,
+            tags: node.tags.filter(t => t !== tag)
+          }
+        }
+        return node
+      })
 
-      // Remove tag from each node
-      for (const node of nodesToUpdate) {
-        await removeTag(node.id, tag)
-      }
+      const affectedCount = nodes.filter(node => node.tags.includes(tag)).length
+      await applyNodeUpdates(updated)
 
-      console.log(`✅ Deleted tag "${tag}" from ${nodesToUpdate.length} bookmarks`)
+      console.log(`✅ Deleted tag "${tag}" from ${affectedCount} bookmarks`)
     } catch (error) {
       console.error('Failed to delete tag:', error)
       throw error
@@ -736,10 +730,10 @@ export const useBookmarkStore = defineStore('bookmark', () => {
   /**
    * Undo last action
    */
-  function undo(): void {
+  async function undo(): Promise<void> {
     if (!canUndo.value) return
 
-    const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
+    const nodes = currentNodes.value
 
     // Save current state to future
     history.value.future.push(JSON.parse(JSON.stringify(nodes)))
@@ -747,23 +741,18 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     // Restore previous state
     const previousState = history.value.past.pop()!
 
-    if (mergedNodes.value.length > 0) {
-      mergedNodes.value = previousState
-    } else if (activeFile.value) {
-      activeFile.value.nodes = previousState
-    }
+    await applyNodeUpdates(previousState)
 
-    updateAllTags()
     console.log('↶ Undo')
   }
 
   /**
    * Redo last undone action
    */
-  function redo(): void {
+  async function redo(): Promise<void> {
     if (!canRedo.value) return
 
-    const nodes = mergedNodes.value.length > 0 ? mergedNodes.value : activeFile.value?.nodes || []
+    const nodes = currentNodes.value
 
     // Save current state to past
     history.value.past.push(JSON.parse(JSON.stringify(nodes)))
@@ -771,13 +760,8 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     // Restore next state
     const nextState = history.value.future.pop()!
 
-    if (mergedNodes.value.length > 0) {
-      mergedNodes.value = nextState
-    } else if (activeFile.value) {
-      activeFile.value.nodes = nextState
-    }
+    await applyNodeUpdates(nextState)
 
-    updateAllTags()
     console.log('↷ Redo')
   }
 
@@ -856,6 +840,7 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     activeTree,
     mergedTree,
     currentTree,
+    currentNodes,
     stats,
     canUndo,
     canRedo,

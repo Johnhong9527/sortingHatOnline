@@ -61,6 +61,9 @@ export function useCanvasTree(
   // Icon cache for base64 images
   const iconCache = new Map<string, HTMLImageElement>()
 
+  // Track if we've initialized default expansion state
+  let hasInitializedExpansion = false
+
   // Mouse state
   let mouseX = 0
   let mouseY = 0
@@ -70,6 +73,7 @@ export function useCanvasTree(
   let panStartTransformX = 0
   let panStartTransformY = 0
   let isSpacePressed = false
+
 
   /**
    * Initialize Canvas
@@ -494,27 +498,52 @@ export function useCanvasTree(
     // Check if tree is large (>2000 nodes)
     const isLargeTree = root.descendants().length > 2000
 
+    // Initialize default expansion state: expand all folder nodes by default
+    // Only initialize once on first load (when expandedNodes is empty and we haven't initialized yet)
+    if (!hasInitializedExpansion && treeData.value.length > 0 && expandedNodes.value.size === 0) {
+      // Collect all folder nodes (nodes without URL) and add them to expandedNodes
+      function collectFolderNodes(node: CanvasNode) {
+        if (node.depth > 0 && !node.data.url) {
+          expandedNodes.value.add(node.data.id)
+        }
+        if (node.children) {
+          node.children.forEach(collectFolderNodes)
+        }
+      }
+      root.children?.forEach(collectFolderNodes)
+      hasInitializedExpansion = true
+    }
+
     // Apply expansion state
-    // Since d3.hierarchy creates a fully expanded tree by default,
-    // we need to collapse nodes that are NOT in expandedNodes
+    // Handle both expanding and collapsing nodes based on expandedNodes
     root.each((d: CanvasNode) => {
-      if (d.depth > 0 && d.children) {
-        let shouldCollapse = false
+      if (d.depth > 0) {
+        const isExpanded = expandedNodes.value.has(d.data.id)
 
         if (isLargeTree) {
           // For large trees, collapse nodes at depth > 1 unless explicitly expanded
-          shouldCollapse = d.depth > 1 && !expandedNodes.value.has(d.data.id)
-        } else {
-          // For small trees, only collapse if explicitly collapsed (not in expandedNodes)
-          // But if expandedNodes is empty, keep everything expanded
-          if (expandedNodes.value.size > 0) {
-            shouldCollapse = !expandedNodes.value.has(d.data.id)
-          }
-        }
+          const shouldBeExpanded = d.depth <= 1 || isExpanded
 
-        if (shouldCollapse) {
-          d._children = d.children as CanvasNode[]
-          d.children = undefined
+          if (shouldBeExpanded && d._children) {
+            // Expand: restore children from _children
+            d.children = d._children as any
+            d._children = undefined
+          } else if (!shouldBeExpanded && d.children) {
+            // Collapse: move children to _children
+            d._children = d.children as CanvasNode[]
+            d.children = undefined
+          }
+        } else {
+          // For small trees, expand if in expandedNodes
+          if (isExpanded && d._children) {
+            // Expand: restore children from _children
+            d.children = d._children as any
+            d._children = undefined
+          } else if (!isExpanded && d.children) {
+            // Collapse: move children to _children
+            d._children = d.children as CanvasNode[]
+            d.children = undefined
+          }
         }
       }
     })
@@ -795,9 +824,25 @@ export function useCanvasTree(
   /**
    * Watch for data changes
    */
-  watch([treeData, expandedNodes, searchResults], () => {
+  watch(treeData, (newTreeData, oldTreeData) => {
+    console.log('🎨 Canvas watcher triggered (treeData), tree length:', newTreeData.length)
+    // Reset initialization flag if tree data changed significantly
+    if (oldTreeData && (newTreeData.length !== oldTreeData.length || 
+        JSON.stringify(newTreeData.map(n => n.id)) !== JSON.stringify(oldTreeData.map(n => n.id)))) {
+      hasInitializedExpansion = false
+    }
     update()
   }, { deep: true })
+
+  watch(expandedNodes, () => {
+    console.log('🎨 Canvas watcher triggered (expandedNodes)')
+    update()
+  })
+
+  watch(searchResults, () => {
+    console.log('🎨 Canvas watcher triggered (searchResults)')
+    update()
+  })
 
   /**
    * Initialize on mount

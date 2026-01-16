@@ -46,6 +46,22 @@ const handleAddFolder = () => {
 const handleManageTags = () => {
   uiStore.showTagPanel = true
 }
+
+const handleUndo = async () => {
+  try {
+    await bookmarkStore.undo()
+  } catch (error) {
+    console.error('Failed to undo:', error)
+  }
+}
+
+const handleRedo = async () => {
+  try {
+    await bookmarkStore.redo()
+  } catch (error) {
+    console.error('Failed to redo:', error)
+  }
+}
 </script>
 
 <template>
@@ -70,7 +86,7 @@ const handleManageTags = () => {
         <a-tooltip title="Undo">
           <a-button
             :disabled="!bookmarkStore.canUndo"
-            @click="bookmarkStore.undo()"
+            @click="handleUndo"
           >
             <template #icon><undo-outlined /></template>
           </a-button>
@@ -78,7 +94,7 @@ const handleManageTags = () => {
         <a-tooltip title="Redo">
           <a-button
             :disabled="!bookmarkStore.canRedo"
-            @click="bookmarkStore.redo()"
+            @click="handleRedo"
           >
             <template #icon><redo-outlined /></template>
           </a-button>
