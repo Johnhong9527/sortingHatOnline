@@ -567,6 +567,23 @@ export const useBookmarkStore = defineStore('bookmark', () => {
   }
 
   /**
+   * Move a node to a specific position relative to a sibling
+   */
+  async function moveNodeRelative(nodeId: string, siblingId: string, position: 'before' | 'after'): Promise<void> {
+    try {
+      pushToHistory()
+
+      const updated = await wasmBridge.moveNodeRelative(currentNodes.value, nodeId, siblingId, position)
+      await applyNodeUpdates(updated)
+
+      console.log(`✅ Moved node ${nodeId} ${position} ${siblingId}`)
+    } catch (error) {
+      console.error('Failed to move node relative:', error)
+      throw error
+    }
+  }
+
+  /**
    * Add a tag to a bookmark
    */
   async function addTag(nodeId: string, tag: string): Promise<void> {
@@ -859,6 +876,7 @@ export const useBookmarkStore = defineStore('bookmark', () => {
     addBookmark,
     addFolder,
     moveNode,
+    moveNodeRelative,
     addTag,
     removeTag,
     renameTag,

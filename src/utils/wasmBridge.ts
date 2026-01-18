@@ -18,6 +18,7 @@ import init, {
   add_tag,
   remove_tag,
   move_node,
+  move_node_relative,
 } from '../../public/wasm/bookmark_wasm.js'
 
 /**
@@ -327,6 +328,31 @@ export class WasmBridge {
     } catch (error) {
       console.error('Error moving node:', error)
       throw new Error(`Failed to move node: ${error}`)
+    }
+  }
+
+  /**
+   * Move a bookmark node to a specific position relative to a sibling
+   * @param nodes - Array of bookmark nodes
+   * @param nodeId - ID of the node to move
+   * @param siblingId - ID of the sibling node to position relative to
+   * @param position - Position relative to sibling ("before" or "after")
+   * @returns Updated array of bookmark nodes
+   */
+  async moveNodeRelative(
+    nodes: BookmarkNode[],
+    nodeId: string,
+    siblingId: string,
+    position: 'before' | 'after'
+  ): Promise<BookmarkNode[]> {
+    this.ensureInitialized()
+
+    try {
+      const result = move_node_relative(nodes, nodeId, siblingId, position)
+      return result as BookmarkNode[]
+    } catch (error) {
+      console.error('Error moving node relative:', error)
+      throw new Error(`Failed to move node relative: ${error}`)
     }
   }
 }

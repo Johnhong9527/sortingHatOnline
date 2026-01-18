@@ -327,39 +327,47 @@ export const useUiStore = defineStore('ui', () => {
    * Toggle node expansion
    */
   function toggleNodeExpansion(nodeId: string): void {
-    if (expandedNodes.value.has(nodeId)) {
-      expandedNodes.value.delete(nodeId)
+    const newSet = new Set(expandedNodes.value)
+    if (newSet.has(nodeId)) {
+      newSet.delete(nodeId)
     } else {
-      expandedNodes.value.add(nodeId)
+      newSet.add(nodeId)
     }
+    expandedNodes.value = newSet
   }
 
   /**
    * Expand node
    */
   function expandNode(nodeId: string): void {
-    expandedNodes.value.add(nodeId)
+    const newSet = new Set(expandedNodes.value)
+    newSet.add(nodeId)
+    expandedNodes.value = newSet
   }
 
   /**
    * Collapse node
    */
   function collapseNode(nodeId: string): void {
-    expandedNodes.value.delete(nodeId)
+    const newSet = new Set(expandedNodes.value)
+    newSet.delete(nodeId)
+    expandedNodes.value = newSet
   }
 
   /**
    * Expand all nodes
    */
   function expandAll(nodeIds: string[]): void {
-    nodeIds.forEach((id) => expandedNodes.value.add(id))
+    const newSet = new Set(expandedNodes.value)
+    nodeIds.forEach((id) => newSet.add(id))
+    expandedNodes.value = newSet
   }
 
   /**
    * Collapse all nodes
    */
   function collapseAll(): void {
-    expandedNodes.value.clear()
+    expandedNodes.value = new Set()
   }
 
   /**

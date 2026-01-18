@@ -75,9 +75,14 @@ const folderStats = computed(() => {
 
 // Handle node click
 const handleNodeClick = (node: BookmarkNode, event: MouseEvent) => {
+  console.log('🖱️ Node clicked:', node.title, 'isFolder:', !node.url)
   // If folder, toggle expansion
   if (!node.url) {
+    console.log('📂 Toggling folder expansion for:', node.id)
+    console.log('📊 Before toggle, expandedNodes size:', expandedNodes.value.size)
     uiStore.toggleNodeExpansion(node.id)
+    console.log('📊 After toggle, expandedNodes size:', expandedNodes.value.size)
+    console.log('📊 Is expanded?', expandedNodes.value.has(node.id))
   } else {
     // If bookmark, show details
     selectedNode.value = node
@@ -157,9 +162,18 @@ const handleContextMenuAction = (action: 'edit' | 'delete' | 'rename' | 'addChil
 }
 
 // Handle node move
-const handleNodeMove = async (nodeId: string, targetId: string) => {
+const handleNodeMove = async (nodeId: string, targetId: string, position?: 'before' | 'after' | 'inside') => {
   try {
-    await bookmarkStore.moveNode(nodeId, targetId)
+    if (position === 'inside') {
+      // Move into folder
+      await bookmarkStore.moveNode(nodeId, targetId)
+    } else if (position === 'before' || position === 'after') {
+      // Move before/after sibling
+      await bookmarkStore.moveNodeRelative(nodeId, targetId, position)
+    } else {
+      // Default: move into folder
+      await bookmarkStore.moveNode(nodeId, targetId)
+    }
     message.success('Node moved successfully')
   } catch (error) {
     message.error(`Failed to move node: ${error}`)
@@ -175,7 +189,8 @@ useCanvasTree(
   searchResults,
   handleNodeClick,
   handleNodeRightClick,
-  handleNodeMove
+  handleNodeMove,
+  (nodeIds: string[]) => uiStore.expandAll(nodeIds)
 )
 
 // Handle edit

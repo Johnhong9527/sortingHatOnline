@@ -606,7 +606,7 @@ pub fn move_node(
 
     // Find and remove the node from its current location
     let mut moved_node: Option<BookmarkNode> = None;
-    
+
     // Helper function to remove node from tree
     fn remove_node_recursive(nodes: &mut Vec<BookmarkNode>, target_id: &str, result: &mut Option<BookmarkNode>) -> bool {
         for i in (0..nodes.len()).rev() {
@@ -644,4 +644,78 @@ pub fn move_node(
     }
 
     serde_wasm_bindgen::to_value(&nodes).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// Move a node to a specific position relative to a sibling
+#[wasm_bindgen]
+pub fn move_node_relative(
+    nodes_js: JsValue,
+    node_id: &str,
+    sibling_id: &str,
+    position: &str, // "before" or "after"
+) -> Result<JsValue, JsValue> {
+    let mut nodes: Vec<BookmarkNode> = serde_wasm_bindgen::from_value(nodes_js)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    // Validate position parameter
+    if position != "before" && position != "after" {
+        return Err(JsValue::from_str("Position must be 'before' or 'after'"));
+    }
+
+    // Find and remove the node from its current location
+    let mut moved_node: Option<BookmarkNode> = None;
+
+    fn remove_node_recursive(nodes: &mut Vec<BookmarkNode>, target_id: &str, result: &mut Option<BookmarkNode>) -> bool {
+        for i in (0..nodes.len()).rev() {
+            if nodes[i].id == target_id {
+                *result = Some(nodes.remove(i));
+                return true;
+            }
+            if remove_node_recursive(&mut nodes[i].children, target_id, result) {
+                return true;
+            }
+        }
+        false
+    }
+
+    if !remove_node_recursive(&mut nodes, node_id, &mut moved_node) {
+        return Err(JsValue::from_str(&format!("Node with id '{}' not found", node_id)));
+    }
+
+    let node_to_move = moved_node.unwrap();
+
+    // Find the sibling node and insert the node at the correct position
+    fn find_sibling_and_insert(
+        nodes: &mut Vec<BookmarkNode>,
+        sibling_id: &str,
+        node_to_insert: &BookmarkNode,
+        position: &str,
+    ) -> bool {
+        // Check if sibling is in current level
+        for (i, node) in nodes.iter().enumerate() {
+            if node.id == sibling_id {
+                // Found the sibling at this level
+                let insert_pos = if position == "before" { i } else { i + 1 };
+                nodes.insert(insert_pos, node_to_insert.clone());
+                return true;
+            }
+        }
+
+        // Search in children recursively
+        for node in nodes.iter_mut() {
+            if find_sibling_and_insert(&mut node.children, sibling_id, node_to_insert, position) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    if find_sibling_and_insert(&mut nodes, sibling_id, &node_to_move, position) {
+        serde_wasm_bindgen::to_value(&nodes).map_err(|e| JsValue::from_str(&e.to_string()))
+    } else {
+        // Sibling not found, restore node to root as fallback
+        nodes.push(node_to_move);
+        Err(JsValue::from_str(&format!("Sibling node with id '{}' not found", sibling_id)))
+    }
 }

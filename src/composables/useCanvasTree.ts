@@ -33,7 +33,8 @@ export function useCanvasTree(
   searchResults: Ref<Set<string>>,
   onNodeClick?: (node: BookmarkNode, event: MouseEvent) => void,
   onNodeRightClick?: (node: BookmarkNode, event: MouseEvent) => void,
-  onNodeMove?: (nodeId: string, targetId: string) => Promise<void>
+  onNodeMove?: (nodeId: string, targetId: string, position?: 'before' | 'after' | 'inside') => Promise<void>,
+  onExpandNodes?: (nodeIds: string[]) => void
 ) {
   let canvas: HTMLCanvasElement | null = null
   let ctx: CanvasRenderingContext2D | null = null
@@ -266,22 +267,10 @@ export function useCanvasTree(
         try {
           const draggedId = dragState.draggedNode.data.id
           const targetId = dragState.dropTarget.data.id
+          const position = dragState.dropZone
 
-          if (dragState.dropZone === 'inside') {
-            // Move into folder
-            await onNodeMove(draggedId, targetId)
-          } else {
-            // Move before/after (same level as target)
-            const targetParentId = dragState.dropTarget.data.parentId
-            if (targetParentId) {
-              // First move to the same parent
-              await onNodeMove(draggedId, targetParentId)
-
-              // TODO: Implement ordering logic here
-              // This would require a new store method to reorder siblings
-              console.log(`Move ${draggedId} ${dragState.dropZone} ${targetId}`)
-            }
-          }
+          // Call onNodeMove with the position parameter
+          await onNodeMove(draggedId, targetId, position)
 
           // Reset drag state first
           dragState.isDragging = false
@@ -502,16 +491,26 @@ export function useCanvasTree(
     // Only initialize once on first load (when expandedNodes is empty and we haven't initialized yet)
     if (!hasInitializedExpansion && treeData.value.length > 0 && expandedNodes.value.size === 0) {
       // Collect all folder nodes (nodes without URL) and add them to expandedNodes
+      const folderIds: string[] = []
       function collectFolderNodes(node: CanvasNode) {
         if (node.depth > 0 && !node.data.url) {
-          expandedNodes.value.add(node.data.id)
+          folderIds.push(node.data.id)
         }
         if (node.children) {
           node.children.forEach(collectFolderNodes)
         }
       }
       root.children?.forEach(collectFolderNodes)
+
+      console.log('🎯 Initializing expandedNodes with folder IDs:', folderIds)
+      // Use callback to update expandedNodes instead of direct assignment
+      if (onExpandNodes) {
+        onExpandNodes(folderIds)
+      }
       hasInitializedExpansion = true
+
+      // Return early - the watcher will trigger update() again with the new expandedNodes
+      return
     }
 
     // Apply expansion state
@@ -519,6 +518,7 @@ export function useCanvasTree(
     root.each((d: CanvasNode) => {
       if (d.depth > 0) {
         const isExpanded = expandedNodes.value.has(d.data.id)
+        console.log(`🔍 Node ${d.data.title} (${d.data.id}): isExpanded=${isExpanded}, has children=${!!d.children}, has _children=${!!d._children}`)
 
         if (isLargeTree) {
           // For large trees, collapse nodes at depth > 1 unless explicitly expanded
@@ -526,10 +526,12 @@ export function useCanvasTree(
 
           if (shouldBeExpanded && d._children) {
             // Expand: restore children from _children
+            console.log(`✅ Expanding node: ${d.data.title}`)
             d.children = d._children as any
             d._children = undefined
           } else if (!shouldBeExpanded && d.children) {
             // Collapse: move children to _children
+            console.log(`❌ Collapsing node: ${d.data.title}`)
             d._children = d.children as CanvasNode[]
             d.children = undefined
           }
@@ -537,10 +539,12 @@ export function useCanvasTree(
           // For small trees, expand if in expandedNodes
           if (isExpanded && d._children) {
             // Expand: restore children from _children
+            console.log(`✅ Expanding node: ${d.data.title}`)
             d.children = d._children as any
             d._children = undefined
           } else if (!isExpanded && d.children) {
             // Collapse: move children to _children
+            console.log(`❌ Collapsing node: ${d.data.title}`)
             d._children = d.children as CanvasNode[]
             d.children = undefined
           }
@@ -834,10 +838,12 @@ export function useCanvasTree(
     update()
   }, { deep: true })
 
-  watch(expandedNodes, () => {
+  watch(expandedNodes, (newVal, oldVal) => {
     console.log('🎨 Canvas watcher triggered (expandedNodes)')
+    console.log('📊 expandedNodes size:', newVal.size)
+    console.log('📊 expandedNodes:', Array.from(newVal))
     update()
-  })
+  }, { deep: true })
 
   watch(searchResults, () => {
     console.log('🎨 Canvas watcher triggered (searchResults)')
