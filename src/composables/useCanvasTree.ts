@@ -737,7 +737,7 @@ export function useCanvasTree(
     ctx.textAlign = labelAlign
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#1e293b'
-    ctx.fillText(truncateText(node.data.title, 30), labelX, y)
+    ctx.fillText(truncateText(node.data.title, 24), labelX, y)
 
     // Draw expand/collapse indicator
     if (node._children || (node.children && node.children.length > 0)) {
