@@ -13,10 +13,10 @@ const preview = ref('')
 const isGeneratingPreview = ref(false)
 
 const formatOptions = [
-  { label: 'HTML (Netscape Format)', value: 'html', description: 'Standard bookmark format compatible with all browsers' },
-  { label: 'JSON', value: 'json', description: 'Structured data format for programmatic use' },
-  { label: 'CSV', value: 'csv', description: 'Spreadsheet format with flat structure' },
-  { label: 'Markdown', value: 'markdown', description: 'Human-readable documentation format' },
+  { label: 'HTML (Netscape 格式)', value: 'html', description: '标准书签格式，兼容所有浏览器' },
+  { label: 'JSON', value: 'json', description: '结构化数据格式，适用于程序化使用' },
+  { label: 'CSV', value: 'csv', description: '电子表格格式，扁平结构' },
+  { label: 'Markdown', value: 'markdown', description: '人类可读的文档格式' },
 ]
 
 const generatePreview = async () => {
@@ -28,10 +28,10 @@ const generatePreview = async () => {
     const lines = content.split('\n').slice(0, 20)
     preview.value = lines.join('\n')
     if (content.split('\n').length > 20) {
-      preview.value += '\n... (truncated)'
+      preview.value += '\n... (已截断)'
     }
   } catch (error) {
-    message.error(`Failed to generate preview: ${error}`)
+    message.error(`生成预览失败: ${error}`)
   } finally {
     isGeneratingPreview.value = false
   }
@@ -41,10 +41,10 @@ const handleExport = async () => {
   try {
     const filename = `bookmarks_${Date.now()}.${selectedFormat.value}`
     await bookmarkStore.downloadExport(selectedFormat.value, filename)
-    message.success('Bookmarks exported successfully')
+    message.success('书签导出成功')
     handleClose()
   } catch (error) {
-    message.error(`Failed to export bookmarks: ${error}`)
+    message.error(`导出书签失败: ${error}`)
   }
 }
 
@@ -61,23 +61,23 @@ const handleFormatChange = () => {
 <template>
   <a-modal
     v-model:open="uiStore.showExportModal"
-    title="Export Bookmarks"
+    title="导出书签"
     width="700px"
     @cancel="handleClose"
   >
     <template #footer>
-      <a-button @click="handleClose">Cancel</a-button>
+      <a-button @click="handleClose">取消</a-button>
       <a-button @click="generatePreview" :loading="isGeneratingPreview">
-        Preview
+        预览
       </a-button>
       <a-button type="primary" @click="handleExport">
-        Export & Download
+        导出并下载
       </a-button>
     </template>
 
     <div class="export-content">
       <a-form layout="vertical">
-        <a-form-item label="Export Format">
+        <a-form-item label="导出格式">
           <a-radio-group
             v-model:value="selectedFormat"
             @change="handleFormatChange"
@@ -97,7 +97,7 @@ const handleFormatChange = () => {
           </a-radio-group>
         </a-form-item>
 
-        <a-form-item v-if="preview" label="Preview (first 20 lines)">
+        <a-form-item v-if="preview" label="预览（前 20 行）">
           <a-textarea
             v-model:value="preview"
             :rows="10"

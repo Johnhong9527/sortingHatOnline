@@ -217,31 +217,31 @@ const exitViewMode = async () => {
       >
         <a-space>
           <a-statistic
-            title="Files"
+            title="文件"
             :value="bookmarkStore.stats.totalFiles"
             :value-style="{ fontSize: '14px' }"
           />
           <a-divider type="vertical" />
           <a-statistic
-            title="Bookmarks"
+            title="书签"
             :value="bookmarkStore.stats.totalBookmarks"
             :value-style="{ fontSize: '14px' }"
           />
           <a-divider type="vertical" />
           <a-statistic
-            title="Folders"
+            title="文件夹"
             :value="bookmarkStore.stats.totalFolders"
             :value-style="{ fontSize: '14px' }"
           />
           <a-divider type="vertical" />
           <a-statistic
-            title="Duplicates"
+            title="重复项"
             :value="bookmarkStore.stats.totalDuplicates"
             :value-style="{ fontSize: '14px', color: bookmarkStore.stats.totalDuplicates > 0 ? '#ff4d4f' : undefined }"
           />
           <a-divider type="vertical" />
           <a-statistic
-            title="Tags"
+            title="标签"
             :value="bookmarkStore.stats.totalTags"
             :value-style="{ fontSize: '14px' }"
           />

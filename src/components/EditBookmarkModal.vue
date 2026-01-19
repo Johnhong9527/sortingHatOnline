@@ -34,7 +34,7 @@ watch(() => uiStore.editingNode, (node) => {
 
 const handleSave = async () => {
   if (!formState.value.title.trim()) {
-    message.warning('Please enter a title')
+    message.warning('请输入标题')
     return
   }
 
@@ -46,7 +46,7 @@ const handleSave = async () => {
         url: formState.value.url || null,
         tags: formState.value.tags,
       })
-      message.success('Bookmark updated successfully')
+      message.success('书签更新成功')
     } else {
       // Add new bookmark
       const newBookmark: Omit<BookmarkNode, 'id'> = {
@@ -59,11 +59,11 @@ const handleSave = async () => {
         children: [],
       }
       await bookmarkStore.addBookmark('root', newBookmark)
-      message.success('Bookmark added successfully')
+      message.success('书签添加成功')
     }
     handleClose()
   } catch (error) {
-    message.error(`Failed to save bookmark: ${error}`)
+    message.error(`保存书签失败: ${error}`)
   }
 }
 
@@ -83,7 +83,7 @@ const allTags = computed(() => Array.from(bookmarkStore.allTags))
 <template>
   <a-modal
     v-model:open="uiStore.showEditModal"
-    :title="isEditing ? 'Edit Bookmark' : 'Add Bookmark'"
+    :title="isEditing ? '编辑书签' : '添加书签'"
     @ok="handleSave"
     @cancel="handleClose"
   >
@@ -93,12 +93,12 @@ const allTags = computed(() => Array.from(bookmarkStore.allTags))
       style="margin-top: 16px"
     >
       <a-form-item
-        label="Title"
+        label="标题"
         required
       >
         <a-input
           v-model:value="formState.title"
-          placeholder="Enter bookmark title"
+          placeholder="请输入书签标题"
         />
       </a-form-item>
 
@@ -109,11 +109,11 @@ const allTags = computed(() => Array.from(bookmarkStore.allTags))
         />
       </a-form-item>
 
-      <a-form-item label="Tags">
+      <a-form-item label="标签">
         <a-select
           v-model:value="formState.tags"
           mode="tags"
-          placeholder="Add tags"
+          placeholder="添加标签"
           :options="allTags.map(tag => ({ value: tag, label: tag }))"
           style="width: 100%"
         />

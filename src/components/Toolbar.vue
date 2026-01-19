@@ -79,7 +79,7 @@ const handleRedo = async () => {
     <!-- Search -->
     <a-input-search
       v-model:value="searchValue"
-      placeholder="Search bookmarks (use 'tag:name' for tag search)"
+      placeholder="搜索书签（使用 'tag:名称' 进行标签搜索）"
       style="width: 400px"
       @search="handleSearch"
       @clear="handleClearSearch"
@@ -93,7 +93,7 @@ const handleRedo = async () => {
     <a-space class="actions">
       <!-- Undo/Redo -->
       <a-button-group>
-        <a-tooltip title="Undo">
+        <a-tooltip title="撤销">
           <a-button
             :disabled="!bookmarkStore.canUndo"
             @click="handleUndo"
@@ -101,7 +101,7 @@ const handleRedo = async () => {
             <template #icon><undo-outlined /></template>
           </a-button>
         </a-tooltip>
-        <a-tooltip title="Redo">
+        <a-tooltip title="重做">
           <a-button
             :disabled="!bookmarkStore.canRedo"
             @click="handleRedo"
@@ -115,7 +115,7 @@ const handleRedo = async () => {
       <a-dropdown>
         <a-button type="primary" :disabled="!isEditModeEnabled">
           <template #icon><plus-outlined /></template>
-          Add
+          添加
         </a-button>
         <template #overlay>
           <a-menu>
@@ -125,7 +125,7 @@ const handleRedo = async () => {
               @click="handleAddBookmark"
             >
               <plus-outlined />
-              Add Bookmark
+              添加书签
             </a-menu-item>
             <a-menu-item 
               key="folder" 
@@ -133,24 +133,24 @@ const handleRedo = async () => {
               @click="handleAddFolder"
             >
               <folder-add-outlined />
-              Add Folder
+              添加文件夹
             </a-menu-item>
           </a-menu>
         </template>
       </a-dropdown>
 
       <!-- Tag Management -->
-      <a-tooltip title="Manage Tags">
+      <a-tooltip title="管理标签">
         <a-button @click="handleManageTags">
           <template #icon><tags-outlined /></template>
         </a-button>
       </a-tooltip>
 
       <!-- Export -->
-      <a-tooltip title="Export Bookmarks">
+      <a-tooltip title="导出书签">
         <a-button @click="handleExport">
           <template #icon><export-outlined /></template>
-          Export
+          导出
         </a-button>
       </a-tooltip>
     </a-space>

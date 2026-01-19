@@ -11,9 +11,9 @@ const handleUpload = async (file: File) => {
   try {
     uploading.value = true
     await bookmarkStore.uploadFile(file)
-    message.success(`${file.name} uploaded successfully`)
+    message.success(`${file.name} 上传成功`)
   } catch (error) {
-    message.error(`Failed to upload ${file.name}: ${error}`)
+    message.error(`上传 ${file.name} 失败: ${error}`)
   } finally {
     uploading.value = false
   }
@@ -27,7 +27,7 @@ const customRequest = (options: any) => {
 
 <template>
   <div class="file-upload-panel">
-    <h3>Upload Bookmarks</h3>
+    <h3>上传书签</h3>
     <a-upload-dragger
       name="file"
       accept=".html,.htm"
@@ -38,9 +38,9 @@ const customRequest = (options: any) => {
       <p class="ant-upload-drag-icon">
         <inbox-outlined />
       </p>
-      <p class="ant-upload-text">Click or drag bookmark files to upload</p>
+      <p class="ant-upload-text">点击或拖拽书签文件到此处上传</p>
       <p class="ant-upload-hint">
-        Support for Netscape HTML bookmark format (.html, .htm)
+        支持 Netscape HTML 书签格式 (.html, .htm)
       </p>
     </a-upload-dragger>
   </div>

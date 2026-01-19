@@ -134,16 +134,16 @@ const handleContextMenuAction = (action: 'edit' | 'delete' | 'rename' | 'addChil
       break
     case 'delete':
       Modal.confirm({
-        title: 'Delete Node',
-        content: `Are you sure you want to delete "${node.title}"?`,
-        okText: 'Delete',
+        title: '删除节点',
+        content: `确定要删除 "${node.title}" 吗？`,
+        okText: '删除',
         okType: 'danger',
         onOk: async () => {
           try {
             await bookmarkStore.deleteBookmark(node.id)
-            message.success('Node deleted successfully')
+            message.success('节点删除成功')
           } catch (error) {
-            message.error(`Failed to delete: ${error}`)
+            message.error(`删除失败: ${error}`)
           }
         }
       })
@@ -189,9 +189,9 @@ const handleNodeMove = async (nodeId: string, targetId: string, position?: 'befo
       // Default: move into folder
       await bookmarkStore.moveNode(nodeId, targetId)
     }
-    message.success('Node moved successfully')
+    message.success('节点移动成功')
   } catch (error) {
-    message.error(`Failed to move node: ${error}`)
+    message.error(`移动节点失败: ${error}`)
     throw error
   }
 }
@@ -244,18 +244,18 @@ const handleDelete = () => {
   if (!selectedNode.value) return
 
   Modal.confirm({
-    title: 'Delete Node',
-    content: `Are you sure you want to delete "${selectedNode.value.title}"?`,
-    okText: 'Delete',
+    title: '删除节点',
+    content: `确定要删除 "${selectedNode.value.title}" 吗？`,
+    okText: '删除',
     okType: 'danger',
     onOk: async () => {
       try {
         await bookmarkStore.deleteBookmark(selectedNode.value!.id)
-        message.success('Node deleted successfully')
+        message.success('节点删除成功')
         showDetailPanel.value = false
         selectedNode.value = null
       } catch (error) {
-        message.error(`Failed to delete: ${error}`)
+        message.error(`删除失败: ${error}`)
       }
     },
   })
@@ -285,7 +285,7 @@ const formatDate = (timestamp: number) => {
       />
       <a-empty
         v-else
-        description="No bookmarks to display. Upload a file to get started."
+        description="没有可显示的书签。上传文件以开始使用。"
         :image-style="{ height: '200px' }"
       />
 
@@ -359,43 +359,43 @@ const formatDate = (timestamp: number) => {
 
       <!-- Legend -->
       <div v-if="treeData.length > 0" class="legend">
-        <div class="legend-title">Legend</div>
+        <div class="legend-title">图例</div>
         <div class="legend-items">
           <div class="legend-item">
             <div class="legend-circle" style="background: #86efac; border-color: #22c55e;"></div>
-            <span>Folder</span>
+            <span>文件夹</span>
           </div>
           <div class="legend-item">
             <div class="legend-circle" style="background: #e0e7ff; border-color: #6366f1;"></div>
-            <span>Bookmark</span>
+            <span>书签</span>
           </div>
           <div class="legend-item">
             <div class="legend-circle" style="background: #bfdbfe; border-color: #3b82f6;"></div>
-            <span>Tagged</span>
+            <span>已标记</span>
           </div>
           <div class="legend-item">
             <div class="legend-circle" style="background: #fef3c7; border-color: #f59e0b;"></div>
-            <span>Duplicate</span>
+            <span>重复项</span>
           </div>
           <div class="legend-item">
             <div class="legend-circle" style="background: #fef08a; border-color: #eab308; border-width: 3px;"></div>
-            <span>Search Result</span>
+            <span>搜索结果</span>
           </div>
         </div>
         <div class="legend-tips">
-          <div>Click folder to expand/collapse</div>
-          <div>Click bookmark to view details</div>
-          <div>Right-click for menu</div>
-          <div>Drag to move nodes</div>
-          <div>Hold Space + Drag to pan</div>
-          <div>Scroll to zoom</div>
+          <div>点击文件夹展开/收起</div>
+          <div>点击书签查看详情</div>
+          <div>右键点击显示菜单</div>
+          <div>拖拽移动节点</div>
+          <div>按住空格键 + 拖拽平移</div>
+          <div>滚动缩放</div>
         </div>
       </div>
 
       <!-- Detail Panel -->
       <a-drawer
         v-model:open="showDetailPanel"
-        title="Node Details"
+        title="节点详情"
         placement="right"
         width="400"
       >
@@ -423,26 +423,26 @@ const formatDate = (timestamp: number) => {
 
           <!-- Folder Statistics -->
           <div v-if="!selectedNode.url && folderStats" class="detail-section">
-            <label>Folder Contents</label>
+            <label>文件夹内容</label>
             <a-space direction="vertical" style="width: 100%">
               <a-row :gutter="16">
                 <a-col :span="12">
-                  <a-statistic title="Direct Children" :value="folderStats.directChildren">
+                  <a-statistic title="直接子项" :value="folderStats.directChildren">
                     <template #prefix>📁</template>
                   </a-statistic>
                 </a-col>
                 <a-col :span="12">
-                  <a-statistic title="Total Items" :value="folderStats.totalDescendants">
+                  <a-statistic title="总项目数" :value="folderStats.totalDescendants">
                     <template #prefix>📊</template>
                   </a-statistic>
                 </a-col>
               </a-row>
               <a-descriptions :column="2" size="small" bordered>
-                <a-descriptions-item label="Bookmarks">
-                  {{ folderStats.childBookmarks }} direct / {{ folderStats.totalBookmarks }} total
+                <a-descriptions-item label="书签">
+                  {{ folderStats.childBookmarks }} 直接 / {{ folderStats.totalBookmarks }} 总计
                 </a-descriptions-item>
-                <a-descriptions-item label="Folders">
-                  {{ folderStats.childFolders }} direct / {{ folderStats.totalFolders }} total
+                <a-descriptions-item label="文件夹">
+                  {{ folderStats.childFolders }} 直接 / {{ folderStats.totalFolders }} 总计
                 </a-descriptions-item>
               </a-descriptions>
             </a-space>
@@ -450,15 +450,15 @@ const formatDate = (timestamp: number) => {
 
           <!-- Type -->
           <div class="detail-section">
-            <label>Type</label>
+            <label>类型</label>
             <a-tag :color="selectedNode.url ? 'blue' : 'green'">
-              {{ selectedNode.url ? 'Bookmark' : 'Folder' }}
+              {{ selectedNode.url ? '书签' : '文件夹' }}
             </a-tag>
           </div>
 
           <!-- Tags -->
           <div class="detail-section">
-            <label>Tags</label>
+            <label>标签</label>
             <div v-if="selectedNode.tags.length > 0" class="tags-list">
               <a-tag
                 v-for="tag in selectedNode.tags"
@@ -469,25 +469,25 @@ const formatDate = (timestamp: number) => {
                 {{ tag }}
               </a-tag>
             </div>
-            <a-empty v-else description="No tags" />
+            <a-empty v-else description="无标签" />
           </div>
 
           <!-- Dates -->
           <div class="detail-section">
-            <label>Added</label>
+            <label>添加时间</label>
             <div>{{ formatDate(selectedNode.addDate) }}</div>
           </div>
 
           <div class="detail-section">
-            <label>Last Modified</label>
+            <label>最后修改</label>
             <div>{{ formatDate(selectedNode.lastModified) }}</div>
           </div>
 
           <!-- Duplicate Status -->
           <div v-if="selectedNode.isDuplicate" class="detail-section">
             <a-alert
-              message="Duplicate Detected"
-              description="This bookmark has duplicates in the merged tree."
+              message="检测到重复"
+              description="此书签在合并树中存在重复项。"
               type="warning"
               show-icon
             />
@@ -503,11 +503,11 @@ const formatDate = (timestamp: number) => {
                 @click="handleEdit"
               >
                 <template #icon><edit-outlined /></template>
-                Edit
+                编辑
               </a-button>
               <a-button v-if="selectedNode.url" block @click="handleOpenUrl">
                 <template #icon><link-outlined /></template>
-                Open URL
+                打开链接
               </a-button>
               <a-button 
                 danger 
@@ -516,7 +516,7 @@ const formatDate = (timestamp: number) => {
                 @click="handleDelete"
               >
                 <template #icon><delete-outlined /></template>
-                Delete
+                删除
               </a-button>
             </a-space>
           </div>

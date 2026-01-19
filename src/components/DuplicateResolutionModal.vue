@@ -15,16 +15,16 @@ const duplicateGroups = computed(() => bookmarkStore.duplicates)
 const handleResolve = async (group: DuplicateGroup) => {
   const selectedNodeId = selectedNodes.value.get(group.url)
   if (!selectedNodeId) {
-    message.warning('Please select a bookmark to keep')
+    message.warning('请选择要保留的书签')
     return
   }
 
   try {
     await bookmarkStore.resolveDuplicate(group, selectedNodeId)
-    message.success('Duplicate resolved')
+    message.success('重复项已解决')
     selectedNodes.value.delete(group.url)
   } catch (error) {
-    message.error(`Failed to resolve duplicate: ${error}`)
+    message.error(`解决重复项失败: ${error}`)
   }
 }
 
@@ -36,7 +36,7 @@ const handleResolveAll = async () => {
     )
     await bookmarkStore.resolveDuplicate(group, newestNode.id)
   }
-  message.success('All duplicates resolved')
+  message.success('所有重复项已解决')
   handleClose()
 }
 
@@ -53,26 +53,26 @@ const formatDate = (timestamp: number) => {
 <template>
   <a-modal
     v-model:open="uiStore.showDuplicateModal"
-    title="Resolve Duplicate Bookmarks"
+    title="解决重复书签"
     width="800px"
     @cancel="handleClose"
   >
     <template #footer>
-      <a-button @click="handleClose">Close</a-button>
+      <a-button @click="handleClose">关闭</a-button>
       <a-button
         type="primary"
         :disabled="duplicateGroups.length === 0"
         @click="handleResolveAll"
       >
-        Resolve All (Keep Newest)
+        全部解决（保留最新的）
       </a-button>
     </template>
 
     <div class="duplicate-list">
       <a-alert
         v-if="duplicateGroups.length > 0"
-        message="Duplicate bookmarks detected"
-        :description="`Found ${duplicateGroups.length} duplicate URL(s). Select which bookmark to keep for each duplicate.`"
+        message="检测到重复书签"
+        :description="`发现 ${duplicateGroups.length} 个重复的 URL。请为每个重复项选择要保留的书签。`"
         type="warning"
         show-icon
         style="margin-bottom: 16px"
@@ -80,7 +80,7 @@ const formatDate = (timestamp: number) => {
 
       <a-empty
         v-if="duplicateGroups.length === 0"
-        description="No duplicates found"
+        description="未发现重复项"
       />
 
       <a-card
@@ -105,9 +105,9 @@ const formatDate = (timestamp: number) => {
               <div class="bookmark-option">
                 <div class="bookmark-title">{{ node.title }}</div>
                 <div class="bookmark-meta">
-                  <span>Added: {{ formatDate(node.addDate) }}</span>
+                  <span>添加时间: {{ formatDate(node.addDate) }}</span>
                   <span v-if="node.tags.length > 0">
-                    Tags: {{ node.tags.join(', ') }}
+                    标签: {{ node.tags.join(', ') }}
                   </span>
                 </div>
               </div>
@@ -121,7 +121,7 @@ const formatDate = (timestamp: number) => {
             type="primary"
             @click="handleResolve(group)"
           >
-            Resolve
+            解决
           </a-button>
         </template>
       </a-card>

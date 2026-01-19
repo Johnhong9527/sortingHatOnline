@@ -37,7 +37,7 @@ const handleRename = (oldTag: string) => {
 
 const handleSaveRename = async () => {
   if (!editingTag.value || !newTagName.value.trim()) {
-    message.warning('Please enter a valid tag name')
+    message.warning('请输入有效的标签名称')
     return
   }
 
@@ -48,11 +48,11 @@ const handleSaveRename = async () => {
 
   try {
     await bookmarkStore.renameTag(editingTag.value, newTagName.value.trim())
-    message.success(`Tag renamed from "${editingTag.value}" to "${newTagName.value}"`)
+    message.success(`标签已从 "${editingTag.value}" 重命名为 "${newTagName.value}"`)
     editingTag.value = null
     newTagName.value = ''
   } catch (error) {
-    message.error(`Failed to rename tag: ${error}`)
+    message.error(`重命名标签失败: ${error}`)
   }
 }
 
@@ -63,16 +63,16 @@ const handleCancelRename = () => {
 
 const handleDelete = (tag: string) => {
   Modal.confirm({
-    title: 'Delete Tag',
-    content: `Are you sure you want to delete the tag "${tag}"? This will remove it from all bookmarks.`,
-    okText: 'Delete',
+    title: '删除标签',
+    content: `确定要删除标签 "${tag}" 吗？这将从所有书签中移除该标签。`,
+    okText: '删除',
     okType: 'danger',
     onOk: async () => {
       try {
         await bookmarkStore.deleteTag(tag)
-        message.success(`Tag "${tag}" deleted successfully`)
+        message.success(`标签 "${tag}" 删除成功`)
       } catch (error) {
-        message.error(`Failed to delete tag: ${error}`)
+        message.error(`删除标签失败: ${error}`)
       }
     },
   })
@@ -80,7 +80,7 @@ const handleDelete = (tag: string) => {
 
 const handleFilter = (tag: string) => {
   bookmarkStore.filterByTag(tag)
-  message.info(`Filtering by tag: ${tag}`)
+  message.info(`正在按标签筛选: ${tag}`)
   handleClose()
 }
 
@@ -94,7 +94,7 @@ const handleClose = () => {
 <template>
   <a-drawer
     v-model:open="uiStore.showTagPanel"
-    title="Tag Management"
+    title="标签管理"
     placement="right"
     width="400"
     @close="handleClose"
@@ -102,8 +102,8 @@ const handleClose = () => {
     <div class="tag-management-panel">
       <a-alert
         v-if="tagList.length === 0"
-        message="No tags found"
-        description="Tags will appear here once you add them to bookmarks."
+        message="未找到标签"
+        description="将标签添加到书签后，它们会显示在这里。"
         type="info"
         show-icon
         style="margin-bottom: 16px"
@@ -117,7 +117,7 @@ const handleClose = () => {
         <template #renderItem="{ item }">
           <a-list-item>
             <template #actions>
-              <a-tooltip title="Filter by tag">
+              <a-tooltip title="按标签筛选">
                 <a-button
                   type="text"
                   size="small"
@@ -126,7 +126,7 @@ const handleClose = () => {
                   <template #icon><filter-outlined /></template>
                 </a-button>
               </a-tooltip>
-              <a-tooltip title="Rename tag">
+              <a-tooltip title="重命名标签">
                 <a-button
                   type="text"
                   size="small"
@@ -135,7 +135,7 @@ const handleClose = () => {
                   <template #icon><edit-outlined /></template>
                 </a-button>
               </a-tooltip>
-              <a-tooltip title="Delete tag">
+              <a-tooltip title="删除标签">
                 <a-button
                   type="text"
                   size="small"
@@ -160,13 +160,13 @@ const handleClose = () => {
                     size="small"
                     @click="handleSaveRename"
                   >
-                    Save
+                    保存
                   </a-button>
                   <a-button
                     size="small"
                     @click="handleCancelRename"
                   >
-                    Cancel
+                    取消
                   </a-button>
                 </div>
                 <div v-else class="tag-item">
@@ -174,7 +174,7 @@ const handleClose = () => {
                     <tag-outlined />
                     {{ item.tag }}
                   </a-tag>
-                  <span class="tag-count">{{ item.count }} bookmark{{ item.count !== 1 ? 's' : '' }}</span>
+                  <span class="tag-count">{{ item.count }} 个书签</span>
                 </div>
               </template>
             </a-list-item-meta>
@@ -186,7 +186,7 @@ const handleClose = () => {
 
       <div class="stats">
         <a-statistic
-          title="Total Tags"
+          title="标签总数"
           :value="tagList.length"
           :value-style="{ fontSize: '24px' }"
         />

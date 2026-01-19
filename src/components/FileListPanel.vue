@@ -21,33 +21,33 @@ const fileList = computed(() => {
 
 const handleMerge = async () => {
   if (selectedFileIds.value.length < 2) {
-    message.warning('Please select at least 2 files to merge')
+    message.warning('请至少选择 2 个文件进行合并')
     return
   }
 
   try {
     await bookmarkStore.mergeFiles(selectedFileIds.value)
-    message.success(`Merged ${selectedFileIds.value.length} files successfully`)
+    message.success(`成功合并 ${selectedFileIds.value.length} 个文件`)
 
     // Show duplicate resolution modal if duplicates found
     if (bookmarkStore.duplicates.length > 0) {
       uiStore.showDuplicateModal = true
     }
   } catch (error) {
-    message.error(`Failed to merge files: ${error}`)
+    message.error(`合并文件失败: ${error}`)
   }
 }
 
 const handleDelete = (fileId: string) => {
   Modal.confirm({
-    title: 'Delete File',
-    content: 'Are you sure you want to delete this file?',
-    okText: 'Delete',
+    title: '删除文件',
+    content: '确定要删除此文件吗？',
+    okText: '删除',
     okType: 'danger',
     onOk: () => {
       bookmarkStore.deleteFile(fileId)
       selectedFileIds.value = selectedFileIds.value.filter(id => id !== fileId)
-      message.success('File deleted successfully')
+      message.success('文件删除成功')
     },
   })
 }
@@ -55,21 +55,21 @@ const handleDelete = (fileId: string) => {
 const handleView = (fileId: string) => {
   bookmarkStore.activeFileId = fileId
   bookmarkStore.clearMerged()
-  message.info('Viewing file')
+  message.info('正在查看文件')
 }
 </script>
 
 <template>
   <div class="file-list-panel">
     <div class="header">
-      <h3>Uploaded Files</h3>
+      <h3>已上传文件</h3>
       <a-button
         type="primary"
         size="small"
         :disabled="selectedFileIds.length < 2"
         @click="handleMerge"
       >
-        Merge Selected
+        合并选中
       </a-button>
     </div>
 
@@ -81,7 +81,7 @@ const handleView = (fileId: string) => {
       <template #renderItem="{ item }">
         <a-list-item>
           <template #actions>
-            <a-tooltip title="View">
+            <a-tooltip title="查看">
               <a-button
                 type="text"
                 size="small"
@@ -90,7 +90,7 @@ const handleView = (fileId: string) => {
                 <template #icon><eye-outlined /></template>
               </a-button>
             </a-tooltip>
-            <a-tooltip title="Delete">
+            <a-tooltip title="删除">
               <a-button
                 type="text"
                 size="small"
@@ -119,7 +119,7 @@ const handleView = (fileId: string) => {
             </template>
             <template #description>
               <div class="file-info">
-                <span>{{ item.nodeCount }} nodes</span>
+                <span>{{ item.nodeCount }} 个节点</span>
                 <span>{{ item.uploadDate }}</span>
               </div>
             </template>
@@ -130,7 +130,7 @@ const handleView = (fileId: string) => {
 
     <a-empty
       v-else
-      description="No files uploaded"
+      description="未上传文件"
     />
   </div>
 </template>
