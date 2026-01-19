@@ -28889,7 +28889,7 @@ async function Zge(e10, t) {
 }
 async function Qge(e10) {
   if (St !== void 0) return St;
-  e10 !== void 0 && (Object.getPrototypeOf(e10) === Object.prototype ? { module_or_path: e10 } = e10 : console.warn("using deprecated parameters for the initialization function; pass a single object instead")), e10 === void 0 && (e10 = new URL("/wasm/bookmark_wasm_bg.wasm", import.meta.url));
+  e10 !== void 0 && (Object.getPrototypeOf(e10) === Object.prototype ? { module_or_path: e10 } = e10 : console.warn("using deprecated parameters for the initialization function; pass a single object instead")), e10 === void 0 && (e10 = new URL("/sortingHatOnline/wasm/bookmark_wasm_bg.wasm", import.meta.url));
   const t = Xge();
   (typeof e10 == "string" || typeof Request == "function" && e10 instanceof Request || typeof URL == "function" && e10 instanceof URL) && (e10 = fetch(e10));
   const { instance: n, module: o } = await Zge(await e10, t);
