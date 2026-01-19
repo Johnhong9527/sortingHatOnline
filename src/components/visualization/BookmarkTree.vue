@@ -108,7 +108,7 @@ function update() {
   const root = d3.hierarchy<BookmarkNode>(
     {
       id: 'root',
-      parentId: null,
+      parentId: undefined,
       title: 'Root',
       url: null,
       addDate: 0,
@@ -166,7 +166,7 @@ function update() {
 function updateLinks(links: d3.HierarchyPointLink<BookmarkNode>[]) {
   const linksGroup = g.select<SVGGElement>('.links')
 
-  const link = linksGroup
+  linksGroup
     .selectAll<SVGPathElement, d3.HierarchyPointLink<BookmarkNode>>('path')
     .data(links, (d: any) => d.target.data.id)
     .join(
@@ -201,7 +201,7 @@ function linkPath(d: d3.HierarchyPointLink<BookmarkNode>): string {
 function updateNodes(nodes: d3.HierarchyPointNode<BookmarkNode>[]) {
   const nodesGroup = g.select<SVGGElement>('.nodes')
 
-  const node = nodesGroup
+  nodesGroup
     .selectAll<SVGGElement, d3.HierarchyPointNode<BookmarkNode>>('g.node')
     .data(nodes, (d: any) => d.data.id)
     .join(
@@ -450,9 +450,9 @@ function setupDrag() {
   return d3.drag<SVGGElement, d3.HierarchyPointNode<BookmarkNode>>()
     .container(function() {
       // Set container to the zoom group for proper coordinate transformation
-      return g.node()
+      return g.node() as any
     })
-    .on('start', function(event, d) {
+    .on('start', function(_event, d) {
       draggedNode = d
 
       // Reduce opacity of original node
@@ -464,9 +464,6 @@ function setupDrag() {
         .attr('transform', `translate(${d.y},${d.x})`)
         .style('pointer-events', 'none')
         .style('opacity', 0.7)
-
-      // Clone the node's visual elements
-      const originalNode = d3.select(this)
 
       // Clone circle
       ghostNode.append('circle')
@@ -535,7 +532,7 @@ function setupDrag() {
 
       dropTarget = closestFolder
     })
-    .on('end', async function(event, d) {
+    .on('end', async function(_event, _d) {
       // Remove ghost node
       if (ghostNode) {
         ghostNode.remove()

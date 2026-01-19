@@ -74,7 +74,7 @@ const folderStats = computed(() => {
 })
 
 // Handle node click
-const handleNodeClick = (node: BookmarkNode, event: MouseEvent) => {
+const handleNodeClick = (node: BookmarkNode, _event: MouseEvent) => {
   console.log('🖱️ Node clicked:', node.title, 'isFolder:', !node.url)
   // If folder, toggle expansion
   if (!node.url) {

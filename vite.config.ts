@@ -5,6 +5,7 @@ import topLevelAwait from 'vite-plugin-top-level-await'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
+  base: '/sortingHatOnline/',
   plugins: [
     vue(),
     wasm(),
@@ -19,6 +20,7 @@ export default defineConfig({
     exclude: ['@/wasm']
   },
   server: {
-    port: 3000
+    port: 3000,
+    host: '0.0.0.0'
   }
 })

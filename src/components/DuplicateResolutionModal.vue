@@ -91,7 +91,8 @@ const formatDate = (timestamp: number) => {
         style="margin-bottom: 16px"
       >
         <a-radio-group
-          v-model:value="selectedNodes.value[group.url]"
+          :value="selectedNodes.get(group.url)"
+          @update:value="(val: string) => selectedNodes.set(group.url, val)"
           style="width: 100%"
         >
           <a-space direction="vertical" style="width: 100%">

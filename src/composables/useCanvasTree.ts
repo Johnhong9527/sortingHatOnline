@@ -383,12 +383,12 @@ export function useCanvasTree(
   /**
    * Convert world coordinates to screen coordinates
    */
-  function worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
-    return {
-      x: worldX * transform.k + transform.x,
-      y: worldY * transform.k + transform.y
-    }
-  }
+  // function worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
+  //   return {
+  //     x: worldX * transform.k + transform.x,
+  //     y: worldY * transform.k + transform.y
+  //   }
+  // }
 
   /**
    * Find node at position
@@ -458,10 +458,10 @@ export function useCanvasTree(
   /**
    * Find drop target (folder only) - legacy function for backward compatibility
    */
-  function findDropTarget(worldX: number, worldY: number): CanvasNode | null {
-    const result = findDropTargetWithZone(worldX, worldY)
-    return result.zone === 'inside' ? result.target : null
-  }
+  // function findDropTarget(worldX: number, worldY: number): CanvasNode | null {
+  //   const result = findDropTargetWithZone(worldX, worldY)
+  //   return result.zone === 'inside' ? result.target : null
+  // }
 
   /**
    * Update tree structure and layout
@@ -473,7 +473,7 @@ export function useCanvasTree(
     root = d3.hierarchy<BookmarkNode>(
       {
         id: 'root',
-        parentId: null,
+        parentId: undefined,
         title: 'Root',
         url: null,
         addDate: 0,
@@ -748,11 +748,11 @@ export function useCanvasTree(
     ctx.globalAlpha = 0.7
 
     // Create a temporary node for rendering
-    const ghostNode: CanvasNode = {
+    const ghostNode = {
       ...dragState.draggedNode,
       y: dragState.ghostX,
       x: dragState.ghostY
-    }
+    } as CanvasNode
 
     renderNode(ghostNode, true)
 
@@ -838,7 +838,7 @@ export function useCanvasTree(
     update()
   }, { deep: true })
 
-  watch(expandedNodes, (newVal, oldVal) => {
+  watch(expandedNodes, (newVal) => {
     console.log('🎨 Canvas watcher triggered (expandedNodes)')
     console.log('📊 expandedNodes size:', newVal.size)
     console.log('📊 expandedNodes:', Array.from(newVal))

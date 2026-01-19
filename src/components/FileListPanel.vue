@@ -106,7 +106,7 @@ const handleView = (fileId: string) => {
             <template #title>
               <a-checkbox
                 :checked="selectedFileIds.includes(item.id)"
-                @change="(e) => {
+                @change="(e: any) => {
                   if (e.target.checked) {
                     selectedFileIds.push(item.id)
                   } else {

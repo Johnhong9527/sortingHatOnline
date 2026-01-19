@@ -8,23 +8,25 @@
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "build:wasm": "cd src-rust && wasm-pack build --target web --out-dir ../public/wasm",
-    "dev:wasm": "cd src-rust && wasm-pack build --target web --out-dir ../public/wasm --dev"
+    "dev:wasm": "cd src-rust && wasm-pack build --target web --out-dir ../public/wasm --dev",
+    "deploy": "gh-pages -d dist -r git@github.com:Johnhong9527/sortingHatOnline.git"
   },
   "dependencies": {
-    "vue": "^3.4.0",
-    "pinia": "^2.1.7",
-    "ant-design-vue": "^4.1.0",
-    "d3": "^7.8.5",
-    "dexie": "^3.2.4"
+    "ant-design-vue": "^4.2.6",
+    "d3": "^7.9.0",
+    "dexie": "^4.2.1",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.26"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.0",
-    "typescript": "^5.3.0",
-    "vite": "^5.0.0",
-    "vue-tsc": "^1.8.27",
     "@types/d3": "^7.4.3",
-    "vite-plugin-wasm": "^3.3.0",
-    "vite-plugin-top-level-await": "^1.4.1"
+    "@vitejs/plugin-vue": "^6.0.3",
+    "gh-pages": "^6.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0",
+    "vue-tsc": "^3.2.2"
   },
   "volta": {
     "node": "24.13.0"

@@ -30,7 +30,7 @@ export function useD3Tree(
   let svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
   let g: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
   let simulation: d3.Simulation<D3Node, D3Link> | null = null
-  let selectedNodeId: string | null = null
+  // let selectedNodeId: string | null = null
 
   // Track collapsed folders
   const collapsedFolders = new Set<string>()
@@ -97,17 +97,17 @@ export function useD3Tree(
   /**
    * Get all descendant node IDs
    */
-  function getDescendants(nodeId: string, nodes: D3Node[]): string[] {
-    const descendants: string[] = []
-    const children = nodes.filter(n => n.data.parentId === nodeId)
+  // function getDescendants(nodeId: string, nodes: D3Node[]): string[] {
+  //   const descendants: string[] = []
+  //   const children = nodes.filter(n => n.data.parentId === nodeId)
 
-    for (const child of children) {
-      descendants.push(child.id)
-      descendants.push(...getDescendants(child.id, nodes))
-    }
+  //   for (const child of children) {
+  //     descendants.push(child.id)
+  //     descendants.push(...getDescendants(child.id, nodes))
+  //   }
 
-    return descendants
-  }
+  //   return descendants
+  // }
 
   /**
    * Convert flat bookmark data to graph structure
@@ -328,7 +328,7 @@ export function useD3Tree(
       event.stopPropagation()
 
       // Update selection state
-      selectedNodeId = d.id
+      // selectedNodeId = d.id
 
       // Update visual state - add glow effect
       node.select('circle:first-child')
@@ -342,7 +342,7 @@ export function useD3Tree(
     })
 
     // Add double-click to open URL
-    node.filter(d => d.data.url)
+    node.filter(d => !!d.data.url)
       .on('dblclick', (event, d) => {
         event.stopPropagation()
         if (d.data.url) {

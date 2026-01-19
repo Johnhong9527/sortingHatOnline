@@ -34,6 +34,7 @@ export interface BookmarkNode {
   tags: string[]
   isDuplicate: boolean
   children: BookmarkNode[]
+  parentId?: string  // 父节点ID,用于树形结构导航
 }
 
 /**
