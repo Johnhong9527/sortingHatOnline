@@ -61,6 +61,9 @@ export const useUiStore = defineStore('ui', () => {
   const selectedNodeId = ref<string | null>(null)
   const hoveredNodeId = ref<string | null>(null)
 
+  // Content view mode state
+  const contentViewMode = ref<'normal' | 'fullpage' | 'fullscreen'>('normal')
+
   // ==================== Computed ====================
 
   const hasSelectedFiles = computed(() => selectedFileIds.value.size > 0)
@@ -385,6 +388,13 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   /**
+   * Set content view mode
+   */
+  function setContentViewMode(mode: 'normal' | 'fullpage' | 'fullscreen'): void {
+    contentViewMode.value = mode
+  }
+
+  /**
    * Reset UI state
    */
   function reset(): void {
@@ -404,6 +414,7 @@ export const useUiStore = defineStore('ui', () => {
     expandedNodes.value.clear()
     selectedNodeId.value = null
     hoveredNodeId.value = null
+    contentViewMode.value = 'normal'
   }
 
   return {
@@ -425,6 +436,7 @@ export const useUiStore = defineStore('ui', () => {
     expandedNodes,
     selectedNodeId,
     hoveredNodeId,
+    contentViewMode,
 
     // Computed
     hasSelectedFiles,
@@ -467,6 +479,7 @@ export const useUiStore = defineStore('ui', () => {
     collapseAll,
     selectNode,
     setHoveredNode,
+    setContentViewMode,
     reset,
   }
 })

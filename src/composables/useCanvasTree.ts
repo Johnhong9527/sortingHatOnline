@@ -77,6 +77,23 @@ export function useCanvasTree(
 
 
   /**
+   * Resize canvas to match container
+   */
+  function resizeCanvas() {
+    if (!containerRef.value || !canvas) return
+
+    const container = containerRef.value
+    const width = container.clientWidth
+    const height = container.clientHeight
+
+    if (width > 0 && height > 0) {
+      canvas.width = width
+      canvas.height = height
+      update()
+    }
+  }
+
+  /**
    * Initialize Canvas
    */
   function initCanvas() {
@@ -876,6 +893,7 @@ export function useCanvasTree(
 
   return {
     update,
-    render
+    render,
+    resizeCanvas
   }
 }

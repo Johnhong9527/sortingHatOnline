@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useBookmarkStore } from '@/stores/bookmarkStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useCanvasTree } from '@/composables/useCanvasTree'
@@ -24,6 +24,11 @@ const contextMenu = ref({
 const treeData = computed(() => bookmarkStore.currentTree)
 const expandedNodes = computed(() => uiStore.expandedNodes)
 const searchResults = computed(() => new Set(bookmarkStore.searchResults))
+
+// 检查是否处于编辑模式
+// 全页模式和默认模式下：所有功能可用（编辑、删除、添加、拖拽、展开/收起）
+// 全屏模式下：仅拖拽和展开/收起可用，编辑功能禁用
+const isEditModeEnabled = computed(() => uiStore.contentViewMode !== 'fullscreen')
 
 // Compute folder statistics
 const folderStats = computed(() => {
@@ -74,9 +79,10 @@ const folderStats = computed(() => {
 })
 
 // Handle node click
+// 展开/收起功能在所有模式下都可用（默认模式、全页模式、全屏模式）
 const handleNodeClick = (node: BookmarkNode, _event: MouseEvent) => {
   console.log('🖱️ Node clicked:', node.title, 'isFolder:', !node.url)
-  // If folder, toggle expansion
+  // If folder, toggle expansion (在所有模式下都可用)
   if (!node.url) {
     console.log('📂 Toggling folder expansion for:', node.id)
     console.log('📊 Before toggle, expandedNodes size:', expandedNodes.value.size)
@@ -84,7 +90,7 @@ const handleNodeClick = (node: BookmarkNode, _event: MouseEvent) => {
     console.log('📊 After toggle, expandedNodes size:', expandedNodes.value.size)
     console.log('📊 Is expanded?', expandedNodes.value.has(node.id))
   } else {
-    // If bookmark, show details
+    // If bookmark, show details (在所有模式下都可用)
     selectedNode.value = node
     showDetailPanel.value = true
   }
@@ -110,6 +116,15 @@ const closeContextMenu = () => {
 const handleContextMenuAction = (action: 'edit' | 'delete' | 'rename' | 'addChild' | 'addSibling' | 'viewDetails' | 'toggleExpand') => {
   const node = contextMenu.value.node
   if (!node) return
+
+  // 编辑相关操作在全屏模式下不可用
+  // 注意：展开/收起（toggleExpand）和查看详情（viewDetails）在所有模式下都可用
+  const editActions = ['edit', 'delete', 'rename', 'addChild', 'addSibling']
+  if (editActions.includes(action) && !isEditModeEnabled.value) {
+    message.warning('编辑功能在全屏模式下不可用，请先退出全屏模式')
+    closeContextMenu()
+    return
+  }
 
   closeContextMenu()
 
@@ -182,7 +197,7 @@ const handleNodeMove = async (nodeId: string, targetId: string, position?: 'befo
 }
 
 // Initialize Canvas tree
-useCanvasTree(
+const { resizeCanvas } = useCanvasTree(
   containerRef,
   treeData,
   expandedNodes,
@@ -193,8 +208,27 @@ useCanvasTree(
   (nodeIds: string[]) => uiStore.expandAll(nodeIds)
 )
 
+// 监听视图模式变化，在全页模式下重新计算 canvas 大小
+watch(() => uiStore.contentViewMode, async (newMode) => {
+  if (newMode === 'fullpage' || newMode === 'normal') {
+    // 等待 DOM 更新完成
+    await nextTick()
+    // 延迟一点时间确保布局已完成
+    setTimeout(() => {
+      if (containerRef.value) {
+        // 重新调整 canvas 大小以匹配容器
+        resizeCanvas()
+      }
+    }, 100)
+  }
+})
+
 // Handle edit
 const handleEdit = () => {
+  if (!isEditModeEnabled.value) {
+    message.warning('编辑功能在全屏模式下不可用，请先退出全屏模式')
+    return
+  }
   if (selectedNode.value) {
     uiStore.editingNode = selectedNode.value
     uiStore.showEditModal = true
@@ -203,6 +237,10 @@ const handleEdit = () => {
 
 // Handle delete
 const handleDelete = () => {
+  if (!isEditModeEnabled.value) {
+    message.warning('删除功能在全屏模式下不可用，请先退出全屏模式')
+    return
+  }
   if (!selectedNode.value) return
 
   Modal.confirm({
@@ -271,13 +309,18 @@ const formatDate = (timestamp: number) => {
         <div 
           v-if="contextMenu.node && !contextMenu.node.url" 
           class="context-menu-item" 
+          :class="{ 'disabled': !isEditModeEnabled }"
           @click="handleContextMenuAction('addChild')"
         >
           <plus-outlined /> 添加子节点
         </div>
         
         <!-- 添加同级节点 -->
-        <div class="context-menu-item" @click="handleContextMenuAction('addSibling')">
+        <div 
+          class="context-menu-item" 
+          :class="{ 'disabled': !isEditModeEnabled }"
+          @click="handleContextMenuAction('addSibling')"
+        >
           <plus-outlined /> 添加同级节点
         </div>
         
@@ -296,12 +339,20 @@ const formatDate = (timestamp: number) => {
         <div class="context-menu-divider"></div>
         
         <!-- 编辑 -->
-        <div class="context-menu-item" @click="handleContextMenuAction('edit')">
+        <div 
+          class="context-menu-item" 
+          :class="{ 'disabled': !isEditModeEnabled }"
+          @click="handleContextMenuAction('edit')"
+        >
           <edit-outlined /> 编辑
         </div>
         
         <!-- 删除 -->
-        <div class="context-menu-item danger" @click="handleContextMenuAction('delete')">
+        <div 
+          class="context-menu-item danger" 
+          :class="{ 'disabled': !isEditModeEnabled }"
+          @click="handleContextMenuAction('delete')"
+        >
           <delete-outlined /> 删除
         </div>
       </div>
@@ -445,7 +496,12 @@ const formatDate = (timestamp: number) => {
           <!-- Actions -->
           <div class="detail-actions">
             <a-space direction="vertical" style="width: 100%">
-              <a-button type="primary" block @click="handleEdit">
+              <a-button 
+                type="primary" 
+                block 
+                :disabled="!isEditModeEnabled"
+                @click="handleEdit"
+              >
                 <template #icon><edit-outlined /></template>
                 Edit
               </a-button>
@@ -453,7 +509,12 @@ const formatDate = (timestamp: number) => {
                 <template #icon><link-outlined /></template>
                 Open URL
               </a-button>
-              <a-button danger block @click="handleDelete">
+              <a-button 
+                danger 
+                block 
+                :disabled="!isEditModeEnabled"
+                @click="handleDelete"
+              >
                 <template #icon><delete-outlined /></template>
                 Delete
               </a-button>
@@ -524,6 +585,12 @@ const formatDate = (timestamp: number) => {
 
 .context-menu-item.danger:hover {
   background: #fee2e2;
+}
+
+.context-menu-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .context-menu-divider {

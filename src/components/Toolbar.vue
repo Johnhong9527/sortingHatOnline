@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useBookmarkStore } from '@/stores/bookmarkStore'
 import { useUiStore } from '@/stores/uiStore'
+import { message } from 'ant-design-vue'
 import {
   SearchOutlined,
   UndoOutlined,
@@ -14,6 +15,11 @@ import {
 
 const bookmarkStore = useBookmarkStore()
 const uiStore = useUiStore()
+
+// 检查是否处于编辑模式
+// 全页模式和默认模式下：所有功能可用（编辑、删除、添加、拖拽、展开/收起）
+// 全屏模式下：仅拖拽和展开/收起可用，编辑功能禁用
+const isEditModeEnabled = computed(() => uiStore.contentViewMode !== 'fullscreen')
 
 const searchValue = ref('')
 
@@ -35,6 +41,10 @@ const handleExport = () => {
 }
 
 const handleAddBookmark = () => {
+  if (!isEditModeEnabled.value) {
+    message.warning('添加功能在全屏模式下不可用，请先退出全屏模式')
+    return
+  }
   uiStore.showEditModal = true
   uiStore.editingNode = null
 }
@@ -103,17 +113,25 @@ const handleRedo = async () => {
 
       <!-- Add Actions -->
       <a-dropdown>
-        <a-button type="primary">
+        <a-button type="primary" :disabled="!isEditModeEnabled">
           <template #icon><plus-outlined /></template>
           Add
         </a-button>
         <template #overlay>
           <a-menu>
-            <a-menu-item key="bookmark" @click="handleAddBookmark">
+            <a-menu-item 
+              key="bookmark" 
+              :disabled="!isEditModeEnabled"
+              @click="handleAddBookmark"
+            >
               <plus-outlined />
               Add Bookmark
             </a-menu-item>
-            <a-menu-item key="folder" @click="handleAddFolder">
+            <a-menu-item 
+              key="folder" 
+              :disabled="!isEditModeEnabled"
+              @click="handleAddFolder"
+            >
               <folder-add-outlined />
               Add Folder
             </a-menu-item>
