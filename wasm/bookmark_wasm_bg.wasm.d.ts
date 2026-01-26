@@ -3,6 +3,7 @@
 export const memory: WebAssembly.Memory;
 export const add_node: (a: any, b: number, c: number, d: any) => [number, number, number];
 export const add_tag: (a: any, b: number, c: number, d: number, e: number) => [number, number, number];
+export const auto_group_by_domain: (a: any, b: number, c: number) => [number, number, number];
 export const delete_node: (a: any, b: number, c: number) => [number, number, number];
 export const find_duplicates: (a: any) => [number, number, number];
 export const init_panic_hook: () => void;

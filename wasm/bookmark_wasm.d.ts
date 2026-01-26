@@ -5,6 +5,12 @@ export function add_node(nodes_js: any, parent_id: string, node_js: any): any;
 
 export function add_tag(nodes_js: any, node_id: string, tag: string): any;
 
+/**
+ * Auto-group bookmarks by domain within a target folder
+ * Creates subfolders for each domain and moves bookmarks into them
+ */
+export function auto_group_by_domain(nodes_js: any, target_folder_id: string): any;
+
 export function delete_node(nodes_js: any, node_id: string): any;
 
 export function find_duplicates(nodes_js: any): any;
@@ -39,6 +45,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly add_node: (a: any, b: number, c: number, d: any) => [number, number, number];
     readonly add_tag: (a: any, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly auto_group_by_domain: (a: any, b: number, c: number) => [number, number, number];
     readonly delete_node: (a: any, b: number, c: number) => [number, number, number];
     readonly find_duplicates: (a: any) => [number, number, number];
     readonly init_panic_hook: () => void;

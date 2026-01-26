@@ -35,6 +35,23 @@ export function add_tag(nodes_js, node_id, tag) {
 }
 
 /**
+ * Auto-group bookmarks by domain within a target folder
+ * Creates subfolders for each domain and moves bookmarks into them
+ * @param {any} nodes_js
+ * @param {string} target_folder_id
+ * @returns {any}
+ */
+export function auto_group_by_domain(nodes_js, target_folder_id) {
+    const ptr0 = passStringToWasm0(target_folder_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.auto_group_by_domain(nodes_js, ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * @param {any} nodes_js
  * @param {string} node_id
  * @returns {any}
